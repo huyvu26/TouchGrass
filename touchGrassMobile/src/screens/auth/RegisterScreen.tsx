@@ -10,18 +10,17 @@ import {
   TextInput,
   View,
 } from 'react-native';
-
 import {
-  ArrowRight,
+  AlertCircle,
+  Check,
+  ChevronLeft,
   Eye,
   EyeOff,
-  LockKeyhole,
-  Mail,
   TreePine,
-  UserRound,
 } from 'lucide-react-native';
-
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {SafeAreaView} from 'react-native-safe-area-context';
+import Svg, {Path} from 'react-native-svg';
 
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
@@ -35,345 +34,483 @@ interface FormErrors {
   fullName?: string;
   email?: string;
   password?: string;
-  acceptedTerms?: string;
+  confirmPassword?: string;
+}
+
+interface AuthInputProps {
+  label: string;
+  value: string;
+  placeholder: string;
+  error?: string;
+  secureTextEntry?: boolean;
+  keyboardType?: 'default' | 'email-address';
+  autoComplete?: 'name' | 'email' | 'new-password';
+  rightElement?: React.ReactNode;
+  onChangeText: (value: string) => void;
+  onSubmitEditing?: () => void;
+}
+
+function AuthInput({
+  label,
+  value,
+  placeholder,
+  error,
+  secureTextEntry,
+  keyboardType = 'default',
+  autoComplete,
+  rightElement,
+  onChangeText,
+  onSubmitEditing,
+}: AuthInputProps) {
+  return (
+    <View style={styles.field}>
+      <Text
+        style={[
+          styles.label,
+          error ? styles.errorLabel : null,
+        ]}>
+        {label}
+      </Text>
+
+      <View>
+        <TextInput
+          style={[
+            styles.input,
+            rightElement ? styles.inputWithAction : null,
+            error ? styles.errorInput : null,
+          ]}
+          value={value}
+          placeholder={placeholder}
+          placeholderTextColor={colors.placeholder}
+          secureTextEntry={secureTextEntry}
+          keyboardType={keyboardType}
+          autoCapitalize={keyboardType === 'email-address' ? 'none' : 'words'}
+          autoCorrect={false}
+          autoComplete={autoComplete}
+          returnKeyType={onSubmitEditing ? 'done' : 'next'}
+          onSubmitEditing={onSubmitEditing}
+          onChangeText={onChangeText}
+        />
+
+        {rightElement ? (
+          <View style={styles.inputAction}>{rightElement}</View>
+        ) : null}
+      </View>
+
+      {error ? (
+        <View style={styles.errorRow}>
+          <AlertCircle
+            size={13}
+            color={colors.error}
+          />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function GoogleLogo() {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 20 20">
+      <Path
+        d="M19.6 10.23c0-.68-.06-1.36-.17-2H10v3.77h5.4c-.23 1.25-.93 2.3-1.97 3.01v2.5h3.18c1.86-1.71 2.99-4.24 2.99-7.28z"
+        fill="#4285F4"
+      />
+      <Path
+        d="M10 20c2.7 0 4.97-.9 6.62-2.43l-3.18-2.5c-.9.6-2.04.96-3.44.96-2.65 0-4.89-1.79-5.69-4.2H1.04v2.57A9.99 9.99 0 0010 20z"
+        fill="#34A853"
+      />
+      <Path
+        d="M4.31 11.83A6.1 6.1 0 013.99 10c0-.63.11-1.25.32-1.83V5.6H1.04A10 10 0 000 10c0 1.61.38 3.13 1.04 4.4l3.27-2.57z"
+        fill="#FBBC04"
+      />
+      <Path
+        d="M10 3.96c1.47 0 2.8.51 3.84 1.5l2.87-2.87C14.97.9 12.7 0 10 0A9.99 9.99 0 001.04 5.6l3.27 2.57C5.11 5.75 7.35 3.96 10 3.96z"
+        fill="#EA4335"
+      />
+    </Svg>
+  );
+}
+
+function AppleLogo() {
+  return (
+    <Svg width={18} height={20} viewBox="0 0 18 21">
+      <Path
+        d="M15.04 10.64c-.02-2.6 2.13-3.86 2.22-3.92-1.21-1.76-3.09-2-3.76-2.03-1.6-.16-3.13.94-3.94.94-.82 0-2.08-.92-3.42-.89C4.43 4.77 2.73 5.8 1.78 7.4-.17 10.62.86 15.4 2.75 18.04c.94 1.32 2.05 2.8 3.5 2.74 1.41-.06 1.94-.89 3.64-.89 1.7 0 2.18.89 3.66.86 1.51-.02 2.46-1.33 3.38-2.65.07-.1.13-.2.19-.3-2.22-.85-2.1-3.16-2.08-3.16z"
+        fill={colors.text}
+      />
+      <Path
+        d="M12.24 3.09C13 2.18 13.53.91 13.38-.05c-1.1.05-2.44.74-3.23 1.67-.7.83-1.33 2.14-1.16 3.38 1.22.09 2.47-.62 3.25-1.91z"
+        fill={colors.text}
+      />
+    </Svg>
+  );
+}
+
+function getPasswordStrength(password: string) {
+  if (!password) {
+    return {score: 0, color: colors.border, label: ''};
+  }
+
+  if (password.length < 6) {
+    return {score: 1, color: colors.error, label: 'Rất yếu'};
+  }
+
+  if (password.length < 8) {
+    return {score: 2, color: '#E8A020', label: 'Yếu'};
+  }
+
+  if (/[A-Z]/.test(password) && /[0-9]/.test(password)) {
+    return {
+      score: 4,
+      color: colors.primaryButton,
+      label: 'Mạnh',
+    };
+  }
+
+  return {score: 3, color: '#B0A000', label: 'Trung bình'};
 }
 
 export function RegisterScreen({navigation}: Props) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] =
+    useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
 
+  const passwordStrength = getPasswordStrength(password);
+
+  function clearError(field: keyof FormErrors) {
+    setErrors(current => ({
+      ...current,
+      [field]: undefined,
+    }));
+  }
+
   function validateForm(): boolean {
     const newErrors: FormErrors = {};
-
-    if (fullName.trim().length < 2) {
-      newErrors.fullName = 'Please enter your full name.';
-    }
-
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+    if (fullName.trim().length < 2) {
+      newErrors.fullName = 'Vui lòng nhập họ và tên.';
+    }
+
     if (!emailPattern.test(email.trim())) {
-      newErrors.email = 'Please enter a valid email address.';
+      newErrors.email = 'Địa chỉ email không hợp lệ.';
     }
 
     if (password.length < 8) {
-      newErrors.password =
-        'Password must contain at least 8 characters.';
+      newErrors.password = 'Mật khẩu phải có ít nhất 8 ký tự.';
     }
 
-    if (!acceptedTerms) {
-      newErrors.acceptedTerms =
-        'Please agree to the Terms of Service.';
+    if (confirmPassword !== password) {
+      newErrors.confirmPassword =
+        'Mật khẩu xác nhận không khớp.';
     }
 
     setErrors(newErrors);
-
     return Object.keys(newErrors).length === 0;
   }
 
   function handleRegister() {
-    if (!validateForm()) {
+    if (!acceptedTerms || !validateForm()) {
       return;
     }
 
-    // Hiện tại chỉ mô phỏng đăng ký thành công.
     Alert.alert(
-      'Account created',
-      `Welcome to Touch Grass, ${fullName.trim()}!`,
+      'Tạo tài khoản thành công',
+      `Chào mừng ${fullName.trim()} đến với Touch Grass!`,
       [
         {
-          text: 'Continue',
+          text: 'Tiếp tục',
           onPress: () => navigation.replace('Permission'),
         },
       ],
     );
   }
 
-  function handleGoogleRegister() {
+  function showComingSoon(title: string) {
     Alert.alert(
-      'Google',
-      'Google Sign-In will be connected later.',
-    );
-  }
-
-  function handleAppleRegister() {
-    Alert.alert(
-      'Apple',
-      'Apple Sign-In will be connected later.',
+      title,
+      'Tính năng này sẽ được kết nối trong phiên bản sau.',
     );
   }
 
   return (
-    <KeyboardAvoidingView
+    <SafeAreaView
       style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.scrollContent}>
-        <View style={styles.logoCircle}>
-          <TreePine
-            size={42}
-            strokeWidth={2.5}
-            color={colors.primaryButton}
+      edges={['top', 'bottom']}>
+      <KeyboardAvoidingView
+        style={styles.keyboardArea}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.scrollContent}>
+        <Pressable
+          accessibilityRole="button"
+          style={styles.backButton}
+          hitSlop={8}
+          onPress={() => navigation.goBack()}>
+          <ChevronLeft
+            size={20}
+            color={colors.textSecondary}
+          />
+          <Text style={styles.backText}>Quay lại</Text>
+        </Pressable>
+
+        <View style={styles.header}>
+          <View style={styles.logo}>
+            <TreePine
+              size={30}
+              color="#FFFFFF"
+              strokeWidth={2.4}
+            />
+          </View>
+
+          <Text style={styles.title}>Tạo tài khoản</Text>
+          <Text style={styles.subtitle}>
+            Bắt đầu hành trình cân bằng thời gian sử dụng màn hình.
+          </Text>
+        </View>
+
+        <View style={styles.form}>
+          <AuthInput
+            label="Họ và tên"
+            value={fullName}
+            placeholder="Nguyễn Hải Đăng"
+            autoComplete="name"
+            error={errors.fullName}
+            onChangeText={value => {
+              setFullName(value);
+              clearError('fullName');
+            }}
+          />
+
+          <AuthInput
+            label="Địa chỉ email"
+            value={email}
+            placeholder="email@example.com"
+            keyboardType="email-address"
+            autoComplete="email"
+            error={errors.email}
+            onChangeText={value => {
+              setEmail(value);
+              clearError('email');
+            }}
+          />
+
+          <View>
+            <AuthInput
+              label="Mật khẩu"
+              value={password}
+              placeholder="Tối thiểu 8 ký tự"
+              secureTextEntry={!showPassword}
+              autoComplete="new-password"
+              error={errors.password}
+              rightElement={
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    showPassword
+                      ? 'Ẩn mật khẩu'
+                      : 'Hiện mật khẩu'
+                  }
+                  hitSlop={10}
+                  onPress={() =>
+                    setShowPassword(current => !current)
+                  }>
+                  {showPassword ? (
+                    <EyeOff
+                      size={20}
+                      color={colors.textSecondary}
+                    />
+                  ) : (
+                    <Eye
+                      size={20}
+                      color={colors.textSecondary}
+                    />
+                  )}
+                </Pressable>
+              }
+              onChangeText={value => {
+                setPassword(value);
+                clearError('password');
+                clearError('confirmPassword');
+              }}
+            />
+
+            {password.length > 0 ? (
+              <View style={styles.strengthContainer}>
+                <View style={styles.strengthBars}>
+                  {[1, 2, 3, 4].map(level => (
+                    <View
+                      key={level}
+                      style={[
+                        styles.strengthBar,
+                        {
+                          backgroundColor:
+                            level <= passwordStrength.score
+                              ? passwordStrength.color
+                              : colors.border,
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
+                <Text
+                  style={[
+                    styles.strengthText,
+                    {color: passwordStrength.color},
+                  ]}>
+                  {passwordStrength.label}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          <AuthInput
+            label="Xác nhận mật khẩu"
+            value={confirmPassword}
+            placeholder="Nhập lại mật khẩu"
+            secureTextEntry={!showConfirmPassword}
+            autoComplete="new-password"
+            error={errors.confirmPassword}
+            onSubmitEditing={handleRegister}
+            rightElement={
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  showConfirmPassword
+                    ? 'Ẩn mật khẩu xác nhận'
+                    : 'Hiện mật khẩu xác nhận'
+                }
+                hitSlop={10}
+                onPress={() =>
+                  setShowConfirmPassword(current => !current)
+                }>
+                {showConfirmPassword ? (
+                  <EyeOff
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                ) : (
+                  <Eye
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                )}
+              </Pressable>
+            }
+            onChangeText={value => {
+              setConfirmPassword(value);
+              clearError('confirmPassword');
+            }}
           />
         </View>
 
-        <Text style={styles.title}>Create Account</Text>
-
-        <Text style={styles.subtitle}>
-          Start your journey back to nature and find{'\n'}
-          your daily balance.
-        </Text>
-
-        <View style={styles.formCard}>
-          <Text style={styles.label}>Full Name</Text>
-
+        <Pressable
+          accessibilityRole="checkbox"
+          accessibilityState={{checked: acceptedTerms}}
+          style={styles.termsButton}
+          onPress={() =>
+            setAcceptedTerms(current => !current)
+          }>
           <View
             style={[
-              styles.inputContainer,
-              errors.fullName && styles.inputError,
+              styles.checkbox,
+              acceptedTerms && styles.checkboxChecked,
             ]}>
-            <UserRound
-              size={25}
-              color={colors.textSecondary}
-            />
-
-            <TextInput
-              style={styles.input}
-              value={fullName}
-              placeholder="John Doe"
-              placeholderTextColor={colors.placeholder}
-              autoCapitalize="words"
-              autoComplete="name"
-              onChangeText={value => {
-                setFullName(value);
-
-                setErrors(current => ({
-                  ...current,
-                  fullName: undefined,
-                }));
-              }}
-            />
+            {acceptedTerms ? (
+              <Check
+                size={13}
+                color="#FFFFFF"
+                strokeWidth={3}
+              />
+            ) : null}
           </View>
 
-          {errors.fullName ? (
-            <Text style={styles.errorText}>
-              {errors.fullName}
+          <Text style={styles.termsText}>
+            Tôi đồng ý với{' '}
+            <Text style={styles.termsLink}>
+              Điều khoản sử dụng
+            </Text>{' '}
+            và{' '}
+            <Text style={styles.termsLink}>
+              Chính sách quyền riêng tư
             </Text>
-          ) : null}
+            .
+          </Text>
+        </Pressable>
 
-          <Text style={styles.label}>Email Address</Text>
+        <Pressable
+          accessibilityRole="button"
+          disabled={!acceptedTerms}
+          style={({pressed}) => [
+            styles.primaryButton,
+            !acceptedTerms && styles.disabledButton,
+            pressed && acceptedTerms && styles.pressed,
+          ]}
+          onPress={handleRegister}>
+          <Text style={styles.primaryButtonText}>
+            Tạo tài khoản
+          </Text>
+        </Pressable>
 
-          <View
-            style={[
-              styles.inputContainer,
-              errors.email && styles.inputError,
-            ]}>
-            <Mail
-              size={26}
-              color={colors.textSecondary}
-            />
+        <View style={styles.dividerRow}>
+          <View style={styles.divider} />
+          <Text style={styles.dividerText}>
+            HOẶC TIẾP TỤC VỚI
+          </Text>
+          <View style={styles.divider} />
+        </View>
 
-            <TextInput
-              style={styles.input}
-              value={email}
-              placeholder="hello@nature.com"
-              placeholderTextColor={colors.placeholder}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="email"
-              onChangeText={value => {
-                setEmail(value);
-
-                setErrors(current => ({
-                  ...current,
-                  email: undefined,
-                }));
-              }}
-            />
-          </View>
-
-          {errors.email ? (
-            <Text style={styles.errorText}>
-              {errors.email}
-            </Text>
-          ) : null}
-
-          <Text style={styles.label}>Password</Text>
-
-          <View
-            style={[
-              styles.inputContainer,
-              errors.password && styles.inputError,
-            ]}>
-            <LockKeyhole
-              size={25}
-              color={colors.textSecondary}
-            />
-
-            <TextInput
-              style={styles.input}
-              value={password}
-              placeholder="••••••••"
-              placeholderTextColor={colors.placeholder}
-              secureTextEntry={!showPassword}
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="new-password"
-              onChangeText={value => {
-                setPassword(value);
-
-                setErrors(current => ({
-                  ...current,
-                  password: undefined,
-                }));
-              }}
-            />
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={
-                showPassword ? 'Hide password' : 'Show password'
-              }
-              hitSlop={10}
-              onPress={() => setShowPassword(current => !current)}>
-              {showPassword ? (
-                <EyeOff
-                  size={27}
-                  color={colors.textSecondary}
-                />
-              ) : (
-                <Eye
-                  size={27}
-                  color={colors.textSecondary}
-                />
-              )}
-            </Pressable>
-          </View>
-
-          {errors.password ? (
-            <Text style={styles.errorText}>
-              {errors.password}
-            </Text>
-          ) : null}
-
+        <View style={styles.socialList}>
           <Pressable
-            accessibilityRole="checkbox"
-            accessibilityState={{checked: acceptedTerms}}
-            style={styles.termsRow}
-            onPress={() => {
-              setAcceptedTerms(current => !current);
-
-              setErrors(current => ({
-                ...current,
-                acceptedTerms: undefined,
-              }));
-            }}>
-            <View
-              style={[
-                styles.checkbox,
-                acceptedTerms && styles.checkboxChecked,
-              ]}>
-              {acceptedTerms ? (
-                <Text style={styles.checkmark}>✓</Text>
-              ) : null}
-            </View>
-
-            <Text style={styles.termsText}>
-              I agree to the{' '}
-              <Text style={styles.link}>
-                Terms of Service
-              </Text>
-              {'\n'}and{' '}
-              <Text style={styles.link}>
-                Privacy Policy.
-              </Text>
-            </Text>
-          </Pressable>
-
-          {errors.acceptedTerms ? (
-            <Text style={styles.termsError}>
-              {errors.acceptedTerms}
-            </Text>
-          ) : null}
-
-          <Pressable
+            accessibilityRole="button"
             style={({pressed}) => [
-              styles.createButton,
+              styles.socialButton,
               pressed && styles.pressed,
             ]}
-            onPress={handleRegister}>
-            <Text style={styles.createButtonText}>
-              Create Account
+            onPress={() => showComingSoon('Google')}>
+            <GoogleLogo />
+            <Text style={styles.socialText}>
+              Tiếp tục với Google
             </Text>
-
-            <ArrowRight
-              size={28}
-              color="#FFFFFF"
-            />
           </Pressable>
 
-          <View style={styles.dividerRow}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerText}>
-              OR CONTINUE WITH
+          <Pressable
+            accessibilityRole="button"
+            style={({pressed}) => [
+              styles.socialButton,
+              pressed && styles.pressed,
+            ]}
+            onPress={() => showComingSoon('Apple')}>
+            <AppleLogo />
+            <Text style={styles.socialText}>
+              Tiếp tục với Apple
             </Text>
-            <View style={styles.divider} />
-          </View>
-
-          <View style={styles.socialRow}>
-            <Pressable
-              style={({pressed}) => [
-                styles.socialButton,
-                pressed && styles.pressed,
-              ]}
-              onPress={handleGoogleRegister}>
-              <Text style={styles.googleIcon}>G</Text>
-              <Text style={styles.socialText}>Google</Text>
-            </Pressable>
-
-            <Pressable
-              style={({pressed}) => [
-                styles.socialButton,
-                pressed && styles.pressed,
-              ]}
-              onPress={handleAppleRegister}>
-              <Text style={styles.appleIcon}>●</Text>
-              <Text style={styles.socialText}>Apple</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.loginRow}>
-            <Text style={styles.loginQuestion}>
-              Already have an account?{' '}
-            </Text>
-
-            <Pressable
-              accessibilityRole="link"
-              onPress={() => navigation.navigate('Login')}>
-              <Text style={styles.loginLink}>Login</Text>
-            </Pressable>
-          </View>
+          </Pressable>
         </View>
 
-        <View style={styles.quoteDecoration}>
-          <View style={styles.shortLine} />
-          <Text style={styles.smallTree}>♧</Text>
-          <View style={styles.shortLine} />
+        <View style={styles.footerRow}>
+          <Text style={styles.footerText}>
+            Bạn đã có tài khoản?{' '}
+          </Text>
+          <Pressable
+            accessibilityRole="link"
+            onPress={() => navigation.navigate('Login')}>
+            <Text style={styles.footerLink}>Đăng nhập</Text>
+          </Pressable>
         </View>
-
-        <Text style={styles.quote}>
-          “In every walk with nature, one receives far{'\n'}
-          more than he seeks.”
-        </Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -382,277 +519,233 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-
+  keyboardArea: {
+    flex: 1,
+  },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 64,
-    paddingBottom: 48,
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 32,
   },
-
-  logoCircle: {
-    width: 88,
-    height: 88,
-    alignSelf: 'center',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 44,
-    backgroundColor: colors.lime,
-  },
-
-  title: {
-    marginTop: 24,
-    color: colors.primary,
-    fontSize: 38,
-    lineHeight: 46,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-
-  subtitle: {
-    marginTop: 12,
-    color: colors.text,
-    fontSize: 17,
-    lineHeight: 26,
-    textAlign: 'center',
-  },
-
-  formCard: {
-    marginTop: 34,
-    paddingHorizontal: 28,
-    paddingTop: 38,
-    paddingBottom: 34,
-    borderRadius: 36,
-    backgroundColor: colors.surface,
-
-    shadowColor: colors.primary,
-    shadowOffset: {
-      width: 0,
-      height: 6,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-
-    elevation: 4,
-  },
-
-  label: {
-    marginBottom: 9,
-    marginLeft: 4,
-    color: colors.text,
-    fontSize: 17,
-    fontWeight: '400',
-  },
-
-  inputContainer: {
-    minHeight: 68,
-    marginBottom: 22,
-    paddingHorizontal: 20,
+  backButton: {
+    marginBottom: 14,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'transparent',
-    borderRadius: 22,
-    backgroundColor: colors.inputBackground,
+    columnGap: 4,
   },
-
-  inputError: {
-    marginBottom: 5,
-    borderColor: colors.error,
+  backText: {
+    color: colors.textSecondary,
+    fontSize: 14,
   },
-
+  header: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  logo: {
+    width: 64,
+    height: 64,
+    marginBottom: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: colors.primaryButton,
+    shadowColor: colors.primaryButton,
+    shadowOffset: {width: 0, height: 8},
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 7,
+  },
+  title: {
+    marginBottom: 6,
+    color: colors.primary,
+    fontSize: 24,
+    lineHeight: 32,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    textAlign: 'center',
+  },
+  subtitle: {
+    maxWidth: 280,
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  form: {
+    rowGap: 14,
+    marginBottom: 14,
+  },
+  field: {
+    rowGap: 6,
+  },
+  label: {
+    color: colors.primary,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
+  errorLabel: {
+    color: colors.error,
+  },
   input: {
-    flex: 1,
-    marginLeft: 15,
-    paddingVertical: 0,
+    height: 52,
+    paddingHorizontal: 16,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 14,
+    backgroundColor: colors.inputBackground,
     color: colors.text,
-    fontSize: 17,
+    fontSize: 15,
   },
-
+  inputWithAction: {
+    paddingRight: 48,
+  },
+  errorInput: {
+    borderColor: colors.error,
+    backgroundColor: colors.errorBackground,
+  },
+  inputAction: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 48,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 5,
+  },
   errorText: {
-    marginBottom: 16,
-    marginLeft: 5,
+    flex: 1,
     color: colors.error,
     fontSize: 12,
+    lineHeight: 16,
   },
-
-  termsRow: {
-    marginTop: 1,
+  strengthContainer: {
+    marginTop: 8,
+  },
+  strengthBars: {
+    marginBottom: 4,
+    flexDirection: 'row',
+    columnGap: 4,
+  },
+  strengthBar: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+  },
+  strengthText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  termsButton: {
+    marginBottom: 18,
     flexDirection: 'row',
     alignItems: 'flex-start',
+    columnGap: 10,
   },
-
   checkbox: {
-    width: 25,
-    height: 25,
-    marginTop: 2,
-    marginRight: 14,
+    width: 20,
+    height: 20,
+    marginTop: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: colors.textSecondary,
-    borderRadius: 5,
-    backgroundColor: colors.surface,
+    borderWidth: 2,
+    borderColor: colors.border,
+    borderRadius: 6,
   },
-
   checkboxChecked: {
     borderColor: colors.primaryButton,
     backgroundColor: colors.primaryButton,
   },
-
-  checkmark: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-
   termsText: {
     flex: 1,
-    color: colors.text,
-    fontSize: 16,
-    lineHeight: 22,
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 20,
   },
-
-  link: {
-    color: colors.primary,
-    fontWeight: '800',
+  termsLink: {
+    color: colors.primaryButton,
+    fontWeight: '600',
   },
-
-  termsError: {
-    marginTop: 6,
-    marginLeft: 39,
-    color: colors.error,
-    fontSize: 12,
-  },
-
-  createButton: {
-    minHeight: 64,
-    marginTop: 24,
-    paddingHorizontal: 30,
-    flexDirection: 'row',
+  primaryButton: {
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    columnGap: 16,
-    borderRadius: 32,
+    borderRadius: 26,
     backgroundColor: colors.primaryButton,
-
     shadowColor: colors.primaryButton,
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-
-    elevation: 6,
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 5,
   },
-
-  createButtonText: {
+  disabledButton: {
+    opacity: 0.45,
+  },
+  primaryButtonText: {
     color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '700',
   },
-
   pressed: {
-    opacity: 0.8,
+    opacity: 0.78,
   },
-
   dividerRow: {
-    marginTop: 30,
+    marginVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
+    columnGap: 12,
   },
-
   divider: {
     flex: 1,
     height: 1,
     backgroundColor: colors.border,
   },
-
   dividerText: {
-    marginHorizontal: 16,
     color: colors.textSecondary,
-    fontSize: 14,
-    letterSpacing: 2,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
-
-  socialRow: {
-    marginTop: 26,
-    flexDirection: 'row',
-    columnGap: 16,
+  socialList: {
+    rowGap: 10,
+    marginBottom: 18,
   },
-
   socialButton: {
-    minHeight: 58,
-    flex: 1,
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    columnGap: 12,
-    borderWidth: 1,
+    columnGap: 10,
+    borderWidth: 1.5,
     borderColor: colors.border,
-    borderRadius: 20,
+    borderRadius: 26,
     backgroundColor: colors.surface,
   },
-
-  googleIcon: {
-    color: '#4285F4',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-
-  appleIcon: {
-    color: '#111111',
-    fontSize: 20,
-  },
-
   socialText: {
-    color: '#111111',
-    fontSize: 17,
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '500',
   },
-
-  loginRow: {
-    marginTop: 36,
+  footerRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     flexWrap: 'wrap',
   },
-
-  loginQuestion: {
-    color: colors.text,
-    fontSize: 16,
+  footerText: {
+    color: colors.textSecondary,
+    fontSize: 14,
   },
-
-  loginLink: {
-    color: colors.primary,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-
-  quoteDecoration: {
-    marginTop: 64,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  shortLine: {
-    width: 42,
-    height: 1,
-    backgroundColor: '#A0A89B',
-  },
-
-  smallTree: {
-    marginHorizontal: 13,
-    color: '#76936D',
-    fontSize: 20,
-  },
-
-  quote: {
-    marginTop: 20,
-    color: '#888D84',
-    fontSize: 16,
-    lineHeight: 24,
-    fontStyle: 'italic',
-    textAlign: 'center',
+  footerLink: {
+    color: colors.primaryButton,
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
