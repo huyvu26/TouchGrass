@@ -1,6 +1,5 @@
 import React, {useState} from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -178,12 +177,14 @@ const DIFFICULTY_COLORS: Record<
 
 interface BottomNavProps {
   onHome: () => void;
-  onComingSoon: (title: string) => void;
+  onStats: () => void;
+  onProfile: () => void;
 }
 
 function BottomNavigation({
   onHome,
-  onComingSoon,
+  onStats,
+  onProfile,
 }: BottomNavProps) {
   const items = [
     {key: 'home', label: 'Trang chủ', icon: Home},
@@ -206,8 +207,10 @@ function BottomNavigation({
             onPress={() => {
               if (item.key === 'home') {
                 onHome();
-              } else if (!active) {
-                onComingSoon(item.label);
+              } else if (item.key === 'stats') {
+                onStats();
+              } else if (item.key === 'profile') {
+                onProfile();
               }
             }}>
             <View
@@ -241,18 +244,13 @@ export function TaskHubScreen({navigation}: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>('daily');
   const tasks = TASKS[activeTab];
 
-  function showComingSoon(title: string) {
-    Alert.alert(
-      title,
-      'Màn hình này sẽ được triển khai trong bước tiếp theo.',
-    );
-  }
-
   function handleTask(task: Task) {
-    Alert.alert(
-      task.progress > 0 ? 'Tiếp tục nhiệm vụ' : 'Bắt đầu nhiệm vụ',
-      `${task.title} sẽ được nối với màn hình chi tiết nhiệm vụ sau.`,
-    );
+    if (task.id === 2 || task.id === 4 || task.id === 5 || task.id === 7) {
+      navigation.navigate('AICamera');
+      return;
+    }
+
+    navigation.navigate('TaskDetail');
   }
 
   return (
@@ -417,7 +415,8 @@ export function TaskHubScreen({navigation}: Props) {
 
       <BottomNavigation
         onHome={() => navigation.navigate('Home')}
-        onComingSoon={showComingSoon}
+        onStats={() => navigation.navigate('Statistics')}
+        onProfile={() => navigation.navigate('Profile')}
       />
     </SafeAreaView>
   );
