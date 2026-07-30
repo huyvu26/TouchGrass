@@ -10,4 +10,17 @@ export type AuthStackParamList = {
     appName: string;
   };
   TaskHub: undefined;
+  TaskDetail: undefined;
+  GPSTracker: undefined;
+  AICamera: undefined;
+  AIAnalysis: undefined;
+  AppLock: undefined;
+  Reward: undefined;
+  Statistics: undefined;
+  History: undefined;
+  Badges: undefined;
+  Profile: undefined;
+  EditProfile: undefined;
+  Settings: undefined;
+  Notifications: undefined;
 };

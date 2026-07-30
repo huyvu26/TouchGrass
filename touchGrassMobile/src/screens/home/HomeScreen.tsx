@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -128,13 +127,15 @@ function ControlledAppIcon({icon}: AppIconProps) {
 }
 
 interface BottomNavProps {
-  onComingSoon: (title: string) => void;
   onOpenTasks: () => void;
+  onOpenStats: () => void;
+  onOpenProfile: () => void;
 }
 
 function BottomNavigation({
-  onComingSoon,
   onOpenTasks,
+  onOpenStats,
+  onOpenProfile,
 }: BottomNavProps) {
   const items = [
     {key: 'home', label: 'Trang chủ', icon: Home},
@@ -157,8 +158,10 @@ function BottomNavigation({
             onPress={() => {
               if (item.key === 'tasks') {
                 onOpenTasks();
-              } else if (!active) {
-                onComingSoon(item.label);
+              } else if (item.key === 'stats') {
+                onOpenStats();
+              } else if (item.key === 'profile') {
+                onOpenProfile();
               }
             }}>
             <View
@@ -196,13 +199,6 @@ export function HomeScreen({navigation}: Props) {
   const radius = 70;
   const circumference = 2 * Math.PI * radius;
 
-  function showComingSoon(title: string) {
-    Alert.alert(
-      title,
-      'Màn hình này sẽ được triển khai trong bước tiếp theo.',
-    );
-  }
-
   return (
     <SafeAreaView
       style={styles.screen}
@@ -226,7 +222,9 @@ export function HomeScreen({navigation}: Props) {
               accessibilityRole="button"
               accessibilityLabel="Thông báo"
               style={styles.headerButton}
-              onPress={() => showComingSoon('Thông báo')}>
+              onPress={() =>
+                navigation.navigate('Notifications')
+              }>
               <Bell
                 size={19}
                 color={colors.textSecondary}
@@ -382,12 +380,19 @@ export function HomeScreen({navigation}: Props) {
                 app.usedMinutes / app.limitMinutes > 0.8;
 
               return (
-                <View
+                <Pressable
                   key={app.name}
                   style={[
                     styles.appCard,
                     app.locked && styles.lockedAppCard,
-                  ]}>
+                  ]}
+                  onPress={() =>
+                    app.locked
+                      ? navigation.navigate('AppLock')
+                      : navigation.navigate('AppLimit', {
+                          appName: app.name,
+                        })
+                  }>
                   <ControlledAppIcon icon={app.icon} />
 
                   <View style={styles.appContent}>
@@ -436,7 +441,7 @@ export function HomeScreen({navigation}: Props) {
                       />
                     </View>
                   </View>
-                </View>
+                </Pressable>
               );
             })}
           </View>
@@ -444,8 +449,9 @@ export function HomeScreen({navigation}: Props) {
       </ScrollView>
 
       <BottomNavigation
-        onComingSoon={showComingSoon}
         onOpenTasks={() => navigation.navigate('TaskHub')}
+        onOpenStats={() => navigation.navigate('Statistics')}
+        onOpenProfile={() => navigation.navigate('Profile')}
       />
     </SafeAreaView>
   );
