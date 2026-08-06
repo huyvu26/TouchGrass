@@ -1,4 +1,10 @@
-import React, {useState} from 'react';
+import React, { useState } from 'react';
+import {
+  saveAccessToken,
+} from '../../storage/authStorage';
+import {
+  register as registerUser,
+} from '../../services/authService';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -18,12 +24,12 @@ import {
   EyeOff,
   TreePine,
 } from 'lucide-react-native';
-import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {SafeAreaView} from 'react-native-safe-area-context';
-import Svg, {Path} from 'react-native-svg';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 
-import {colors} from '../../constants/colors';
-import type {AuthStackParamList} from '../../navigation/types';
+import { colors } from '../../constants/colors';
+import type { AuthStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
@@ -150,15 +156,15 @@ function AppleLogo() {
 
 function getPasswordStrength(password: string) {
   if (!password) {
-    return {score: 0, color: colors.border, label: ''};
+    return { score: 0, color: colors.border, label: '' };
   }
 
   if (password.length < 6) {
-    return {score: 1, color: colors.error, label: 'Rất yếu'};
+    return { score: 1, color: colors.error, label: 'Rất yếu' };
   }
 
   if (password.length < 8) {
-    return {score: 2, color: '#E8A020', label: 'Yếu'};
+    return { score: 2, color: '#E8A020', label: 'Yếu' };
   }
 
   if (/[A-Z]/.test(password) && /[0-9]/.test(password)) {
@@ -169,10 +175,10 @@ function getPasswordStrength(password: string) {
     };
   }
 
-  return {score: 3, color: '#B0A000', label: 'Trung bình'};
+  return { score: 3, color: '#B0A000', label: 'Trung bình' };
 }
 
-export function RegisterScreen({navigation}: Props) {
+export function RegisterScreen({ navigation }: Props) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -182,6 +188,8 @@ export function RegisterScreen({navigation}: Props) {
     useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
 
   const passwordStrength = getPasswordStrength(password);
 
@@ -196,7 +204,7 @@ export function RegisterScreen({navigation}: Props) {
     const newErrors: FormErrors = {};
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    if (fullName.trim().length < 2) {
+    if (fullName.trim().length < 3) {
       newErrors.fullName = 'Vui lòng nhập họ và tên.';
     }
 
@@ -217,21 +225,51 @@ export function RegisterScreen({navigation}: Props) {
     return Object.keys(newErrors).length === 0;
   }
 
-  function handleRegister() {
-    if (!acceptedTerms || !validateForm()) {
+  async function handleRegister() {
+    if (
+      !acceptedTerms ||
+      !validateForm() ||
+      isSubmitting
+    ) {
       return;
     }
 
-    Alert.alert(
-      'Tạo tài khoản thành công',
-      `Chào mừng ${fullName.trim()} đến với Touch Grass!`,
-      [
-        {
-          text: 'Tiếp tục',
-          onPress: () => navigation.replace('Permission'),
-        },
-      ],
-    );
+    setIsSubmitting(true);
+
+    try {
+      const authResponse = await registerUser({
+        fullName: fullName.trim(),
+        email: email.toLowerCase().trim(),
+        password,
+      });
+      await saveAccessToken(
+        authResponse.accessToken,
+      )
+
+      Alert.alert(
+        'Tạo tài khoản thành công',
+        `Chào mừng ${authResponse.user.fullName} đến với Touch Grass!`,
+        [
+          {
+            text: 'Tiếp tục',
+            onPress: () =>
+              navigation.replace('Permission'),
+          },
+        ],
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Không thể đăng ký tài khoản.';
+
+      Alert.alert(
+        'Đăng ký thất bại',
+        message,
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function showComingSoon(title: string) {
@@ -252,80 +290,149 @@ export function RegisterScreen({navigation}: Props) {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}>
-        <Pressable
-          accessibilityRole="button"
-          style={styles.backButton}
-          hitSlop={8}
-          onPress={() => navigation.goBack()}>
-          <ChevronLeft
-            size={20}
-            color={colors.textSecondary}
-          />
-          <Text style={styles.backText}>Quay lại</Text>
-        </Pressable>
-
-        <View style={styles.header}>
-          <View style={styles.logo}>
-            <TreePine
-              size={30}
-              color="#FFFFFF"
-              strokeWidth={2.4}
+          <Pressable
+            accessibilityRole="button"
+            style={styles.backButton}
+            hitSlop={8}
+            onPress={() => navigation.goBack()}>
+            <ChevronLeft
+              size={20}
+              color={colors.textSecondary}
             />
+            <Text style={styles.backText}>Quay lại</Text>
+          </Pressable>
+
+          <View style={styles.header}>
+            <View style={styles.logo}>
+              <TreePine
+                size={30}
+                color="#FFFFFF"
+                strokeWidth={2.4}
+              />
+            </View>
+
+            <Text style={styles.title}>Tạo tài khoản</Text>
+            <Text style={styles.subtitle}>
+              Bắt đầu hành trình cân bằng thời gian sử dụng màn hình.
+            </Text>
           </View>
 
-          <Text style={styles.title}>Tạo tài khoản</Text>
-          <Text style={styles.subtitle}>
-            Bắt đầu hành trình cân bằng thời gian sử dụng màn hình.
-          </Text>
-        </View>
-
-        <View style={styles.form}>
-          <AuthInput
-            label="Họ và tên"
-            value={fullName}
-            placeholder="Nguyễn Hải Đăng"
-            autoComplete="name"
-            error={errors.fullName}
-            onChangeText={value => {
-              setFullName(value);
-              clearError('fullName');
-            }}
-          />
-
-          <AuthInput
-            label="Địa chỉ email"
-            value={email}
-            placeholder="email@example.com"
-            keyboardType="email-address"
-            autoComplete="email"
-            error={errors.email}
-            onChangeText={value => {
-              setEmail(value);
-              clearError('email');
-            }}
-          />
-
-          <View>
+          <View style={styles.form}>
             <AuthInput
-              label="Mật khẩu"
-              value={password}
-              placeholder="Tối thiểu 8 ký tự"
-              secureTextEntry={!showPassword}
+              label="Họ và tên"
+              value={fullName}
+              placeholder="Nguyễn Hải Đăng"
+              autoComplete="name"
+              error={errors.fullName}
+              onChangeText={value => {
+                setFullName(value);
+                clearError('fullName');
+              }}
+            />
+
+            <AuthInput
+              label="Địa chỉ email"
+              value={email}
+              placeholder="email@example.com"
+              keyboardType="email-address"
+              autoComplete="email"
+              error={errors.email}
+              onChangeText={value => {
+                setEmail(value);
+                clearError('email');
+              }}
+            />
+
+            <View>
+              <AuthInput
+                label="Mật khẩu"
+                value={password}
+                placeholder="Tối thiểu 8 ký tự"
+                secureTextEntry={!showPassword}
+                autoComplete="new-password"
+                error={errors.password}
+                rightElement={
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      showPassword
+                        ? 'Ẩn mật khẩu'
+                        : 'Hiện mật khẩu'
+                    }
+                    hitSlop={10}
+                    onPress={() =>
+                      setShowPassword(current => !current)
+                    }>
+                    {showPassword ? (
+                      <EyeOff
+                        size={20}
+                        color={colors.textSecondary}
+                      />
+                    ) : (
+                      <Eye
+                        size={20}
+                        color={colors.textSecondary}
+                      />
+                    )}
+                  </Pressable>
+                }
+                onChangeText={value => {
+                  setPassword(value);
+                  clearError('password');
+                  clearError('confirmPassword');
+                }}
+              />
+
+              {password.length > 0 ? (
+                <View style={styles.strengthContainer}>
+                  <View style={styles.strengthBars}>
+                    {[1, 2, 3, 4].map(level => (
+                      <View
+                        key={level}
+                        style={[
+                          styles.strengthBar,
+                          {
+                            backgroundColor:
+                              level <= passwordStrength.score
+                                ? passwordStrength.color
+                                : colors.border,
+                          },
+                        ]}
+                      />
+                    ))}
+                  </View>
+                  <Text
+                    style={[
+                      styles.strengthText,
+                      { color: passwordStrength.color },
+                    ]}>
+                    {passwordStrength.label}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            <AuthInput
+              label="Xác nhận mật khẩu"
+              value={confirmPassword}
+              placeholder="Nhập lại mật khẩu"
+              secureTextEntry={!showConfirmPassword}
               autoComplete="new-password"
-              error={errors.password}
+              error={errors.confirmPassword}
+              onSubmitEditing={handleRegister}
               rightElement={
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={
-                    showPassword
-                      ? 'Ẩn mật khẩu'
-                      : 'Hiện mật khẩu'
+                    showConfirmPassword
+                      ? 'Ẩn mật khẩu xác nhận'
+                      : 'Hiện mật khẩu xác nhận'
                   }
                   hitSlop={10}
                   onPress={() =>
-                    setShowPassword(current => !current)
+                    setShowConfirmPassword(current => !current)
                   }>
-                  {showPassword ? (
+                  {showConfirmPassword ? (
                     <EyeOff
                       size={20}
                       color={colors.textSecondary}
@@ -339,175 +446,114 @@ export function RegisterScreen({navigation}: Props) {
                 </Pressable>
               }
               onChangeText={value => {
-                setPassword(value);
-                clearError('password');
+                setConfirmPassword(value);
                 clearError('confirmPassword');
               }}
             />
-
-            {password.length > 0 ? (
-              <View style={styles.strengthContainer}>
-                <View style={styles.strengthBars}>
-                  {[1, 2, 3, 4].map(level => (
-                    <View
-                      key={level}
-                      style={[
-                        styles.strengthBar,
-                        {
-                          backgroundColor:
-                            level <= passwordStrength.score
-                              ? passwordStrength.color
-                              : colors.border,
-                        },
-                      ]}
-                    />
-                  ))}
-                </View>
-                <Text
-                  style={[
-                    styles.strengthText,
-                    {color: passwordStrength.color},
-                  ]}>
-                  {passwordStrength.label}
-                </Text>
-              </View>
-            ) : null}
           </View>
 
-          <AuthInput
-            label="Xác nhận mật khẩu"
-            value={confirmPassword}
-            placeholder="Nhập lại mật khẩu"
-            secureTextEntry={!showConfirmPassword}
-            autoComplete="new-password"
-            error={errors.confirmPassword}
-            onSubmitEditing={handleRegister}
-            rightElement={
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={
-                  showConfirmPassword
-                    ? 'Ẩn mật khẩu xác nhận'
-                    : 'Hiện mật khẩu xác nhận'
-                }
-                hitSlop={10}
-                onPress={() =>
-                  setShowConfirmPassword(current => !current)
-                }>
-                {showConfirmPassword ? (
-                  <EyeOff
-                    size={20}
-                    color={colors.textSecondary}
-                  />
-                ) : (
-                  <Eye
-                    size={20}
-                    color={colors.textSecondary}
-                  />
-                )}
-              </Pressable>
-            }
-            onChangeText={value => {
-              setConfirmPassword(value);
-              clearError('confirmPassword');
-            }}
-          />
-        </View>
-
-        <Pressable
-          accessibilityRole="checkbox"
-          accessibilityState={{checked: acceptedTerms}}
-          style={styles.termsButton}
-          onPress={() =>
-            setAcceptedTerms(current => !current)
-          }>
-          <View
-            style={[
-              styles.checkbox,
-              acceptedTerms && styles.checkboxChecked,
-            ]}>
-            {acceptedTerms ? (
-              <Check
-                size={13}
-                color="#FFFFFF"
-                strokeWidth={3}
-              />
-            ) : null}
-          </View>
-
-          <Text style={styles.termsText}>
-            Tôi đồng ý với{' '}
-            <Text style={styles.termsLink}>
-              Điều khoản sử dụng
-            </Text>{' '}
-            và{' '}
-            <Text style={styles.termsLink}>
-              Chính sách quyền riêng tư
-            </Text>
-            .
-          </Text>
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="button"
-          disabled={!acceptedTerms}
-          style={({pressed}) => [
-            styles.primaryButton,
-            !acceptedTerms && styles.disabledButton,
-            pressed && acceptedTerms && styles.pressed,
-          ]}
-          onPress={handleRegister}>
-          <Text style={styles.primaryButtonText}>
-            Tạo tài khoản
-          </Text>
-        </Pressable>
-
-        <View style={styles.dividerRow}>
-          <View style={styles.divider} />
-          <Text style={styles.dividerText}>
-            HOẶC TIẾP TỤC VỚI
-          </Text>
-          <View style={styles.divider} />
-        </View>
-
-        <View style={styles.socialList}>
           <Pressable
-            accessibilityRole="button"
-            style={({pressed}) => [
-              styles.socialButton,
-              pressed && styles.pressed,
-            ]}
-            onPress={() => showComingSoon('Google')}>
-            <GoogleLogo />
-            <Text style={styles.socialText}>
-              Tiếp tục với Google
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: acceptedTerms }}
+            style={styles.termsButton}
+            onPress={() =>
+              setAcceptedTerms(current => !current)
+            }>
+            <View
+              style={[
+                styles.checkbox,
+                acceptedTerms && styles.checkboxChecked,
+              ]}>
+              {acceptedTerms ? (
+                <Check
+                  size={13}
+                  color="#FFFFFF"
+                  strokeWidth={3}
+                />
+              ) : null}
+            </View>
+
+            <Text style={styles.termsText}>
+              Tôi đồng ý với{' '}
+              <Text style={styles.termsLink}>
+                Điều khoản sử dụng
+              </Text>{' '}
+              và{' '}
+              <Text style={styles.termsLink}>
+                Chính sách quyền riêng tư
+              </Text>
+              .
             </Text>
           </Pressable>
 
           <Pressable
             accessibilityRole="button"
-            style={({pressed}) => [
-              styles.socialButton,
-              pressed && styles.pressed,
+            disabled={!acceptedTerms || isSubmitting}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              (!acceptedTerms || isSubmitting) &&
+              styles.disabledButton,
+              pressed &&
+              acceptedTerms &&
+              !isSubmitting &&
+              styles.pressed,
             ]}
-            onPress={() => showComingSoon('Apple')}>
-            <AppleLogo />
-            <Text style={styles.socialText}>
-              Tiếp tục với Apple
+            onPress={() => {
+              void handleRegister();
+            }}>
+            <Text style={styles.primaryButtonText}>
+              {isSubmitting
+                ? 'Đang tạo tài khoản...'
+                : 'Tạo tài khoản'}
             </Text>
           </Pressable>
-        </View>
 
-        <View style={styles.footerRow}>
-          <Text style={styles.footerText}>
-            Bạn đã có tài khoản?{' '}
-          </Text>
-          <Pressable
-            accessibilityRole="link"
-            onPress={() => navigation.navigate('Login')}>
-            <Text style={styles.footerLink}>Đăng nhập</Text>
-          </Pressable>
-        </View>
+          <View style={styles.dividerRow}>
+            <View style={styles.divider} />
+            <Text style={styles.dividerText}>
+              HOẶC TIẾP TỤC VỚI
+            </Text>
+            <View style={styles.divider} />
+          </View>
+
+          <View style={styles.socialList}>
+            <Pressable
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.socialButton,
+                pressed && styles.pressed,
+              ]}
+              onPress={() => showComingSoon('Google')}>
+              <GoogleLogo />
+              <Text style={styles.socialText}>
+                Tiếp tục với Google
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.socialButton,
+                pressed && styles.pressed,
+              ]}
+              onPress={() => showComingSoon('Apple')}>
+              <AppleLogo />
+              <Text style={styles.socialText}>
+                Tiếp tục với Apple
+              </Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.footerRow}>
+            <Text style={styles.footerText}>
+              Bạn đã có tài khoản?{' '}
+            </Text>
+            <Pressable
+              accessibilityRole="link"
+              onPress={() => navigation.navigate('Login')}>
+              <Text style={styles.footerLink}>Đăng nhập</Text>
+            </Pressable>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -553,7 +599,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: colors.primaryButton,
     shadowColor: colors.primaryButton,
-    shadowOffset: {width: 0, height: 8},
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
     shadowRadius: 12,
     elevation: 7,
@@ -681,7 +727,7 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     backgroundColor: colors.primaryButton,
     shadowColor: colors.primaryButton,
-    shadowOffset: {width: 0, height: 4},
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.28,
     shadowRadius: 8,
     elevation: 5,

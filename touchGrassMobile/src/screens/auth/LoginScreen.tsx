@@ -1,4 +1,10 @@
-import React, {useState} from 'react';
+import React, { useState } from 'react';
+import {
+  login as loginUser,
+} from '../../services/authService';
+import {
+  saveAccessToken,
+} from '../../storage/authStorage';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -18,12 +24,12 @@ import {
   EyeOff,
   TreePine,
 } from 'lucide-react-native';
-import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {SafeAreaView} from 'react-native-safe-area-context';
-import Svg, {Path} from 'react-native-svg';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 
-import {colors} from '../../constants/colors';
-import type {AuthStackParamList} from '../../navigation/types';
+import { colors } from '../../constants/colors';
+import type { AuthStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
@@ -73,12 +79,14 @@ function AppleLogo() {
   );
 }
 
-export function LoginScreen({navigation}: Props) {
+export function LoginScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(true);
   const [errors, setErrors] = useState<LoginErrors>({});
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
 
   function clearError(field: keyof LoginErrors) {
     setErrors(current => ({
@@ -103,21 +111,47 @@ export function LoginScreen({navigation}: Props) {
     return Object.keys(newErrors).length === 0;
   }
 
-  function handleLogin() {
-    if (!validateForm()) {
+  async function handleLogin() {
+    if (!validateForm() || isSubmitting) {
       return;
     }
 
-    Alert.alert(
-      'Đăng nhập thành công',
-      'Chào mừng bạn quay lại Touch Grass!',
-      [
-        {
-          text: 'Tiếp tục',
-          onPress: () => navigation.replace('Permission'),
-        },
-      ],
-    );
+    setIsSubmitting(true);
+
+    try {
+      const authResponse = await loginUser({
+        email: email.toLowerCase().trim(),
+        password,
+      });
+
+      await saveAccessToken(
+        authResponse.accessToken,
+      );
+
+      Alert.alert(
+        'Đăng nhập thành công',
+        `Chào mừng ${authResponse.user.fullName} quay lại Touch Grass!`,
+        [
+          {
+            text: 'Tiếp tục',
+            onPress: () =>
+              navigation.replace('Permission'),
+          },
+        ],
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Không thể đăng nhập.';
+
+      Alert.alert(
+        'Đăng nhập thất bại',
+        message,
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function showComingSoon(title: string) {
@@ -138,230 +172,242 @@ export function LoginScreen({navigation}: Props) {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <View style={styles.logo}>
-            <TreePine
-              size={34}
-              color="#FFFFFF"
-              strokeWidth={2.4}
-            />
+          <View style={styles.header}>
+            <View style={styles.logo}>
+              <TreePine
+                size={34}
+                color="#FFFFFF"
+                strokeWidth={2.4}
+              />
+            </View>
+
+            <Text style={styles.title}>Chào mừng trở lại</Text>
+            <Text style={styles.subtitle}>
+              Đăng nhập để tiếp tục hành trình
+            </Text>
           </View>
 
-          <Text style={styles.title}>Chào mừng trở lại</Text>
-          <Text style={styles.subtitle}>
-            Đăng nhập để tiếp tục hành trình
-          </Text>
-        </View>
+          <View style={styles.form}>
+            <View style={styles.field}>
+              <Text
+                style={[
+                  styles.label,
+                  errors.email && styles.errorLabel,
+                ]}>
+                Địa chỉ email
+              </Text>
 
-        <View style={styles.form}>
-          <View style={styles.field}>
-            <Text
-              style={[
-                styles.label,
-                errors.email && styles.errorLabel,
-              ]}>
-              Địa chỉ email
-            </Text>
-
-            <TextInput
-              style={[
-                styles.input,
-                errors.email && styles.errorInput,
-              ]}
-              value={email}
-              placeholder="email@example.com"
-              placeholderTextColor={colors.placeholder}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="email"
-              returnKeyType="next"
-              onChangeText={value => {
-                setEmail(value);
-                clearError('email');
-              }}
-            />
-
-            {errors.email ? (
-              <View style={styles.errorRow}>
-                <AlertCircle
-                  size={13}
-                  color={colors.error}
-                />
-                <Text style={styles.errorText}>
-                  {errors.email}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
-          <View style={styles.field}>
-            <Text
-              style={[
-                styles.label,
-                errors.password && styles.errorLabel,
-              ]}>
-              Mật khẩu
-            </Text>
-
-            <View>
               <TextInput
                 style={[
                   styles.input,
-                  styles.passwordInput,
-                  errors.password && styles.errorInput,
+                  errors.email && styles.errorInput,
                 ]}
-                value={password}
-                placeholder="Nhập mật khẩu"
+                value={email}
+                placeholder="email@example.com"
                 placeholderTextColor={colors.placeholder}
-                secureTextEntry={!showPassword}
+                keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
-                autoComplete="password"
-                returnKeyType="done"
-                onSubmitEditing={handleLogin}
+                autoComplete="email"
+                returnKeyType="next"
                 onChangeText={value => {
-                  setPassword(value);
-                  clearError('password');
+                  setEmail(value);
+                  clearError('email');
                 }}
               />
 
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={
-                  showPassword
-                    ? 'Ẩn mật khẩu'
-                    : 'Hiện mật khẩu'
-                }
-                style={styles.eyeButton}
-                hitSlop={10}
-                onPress={() =>
-                  setShowPassword(current => !current)
-                }>
-                {showPassword ? (
-                  <EyeOff
-                    size={20}
-                    color={colors.textSecondary}
+              {errors.email ? (
+                <View style={styles.errorRow}>
+                  <AlertCircle
+                    size={13}
+                    color={colors.error}
                   />
-                ) : (
-                  <Eye
-                    size={20}
-                    color={colors.textSecondary}
-                  />
-                )}
-              </Pressable>
-            </View>
-
-            {errors.password ? (
-              <View style={styles.errorRow}>
-                <AlertCircle
-                  size={13}
-                  color={colors.error}
-                />
-                <Text style={styles.errorText}>
-                  {errors.password}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-        </View>
-
-        <View style={styles.optionsRow}>
-          <Pressable
-            accessibilityRole="checkbox"
-            accessibilityState={{checked: rememberLogin}}
-            style={styles.rememberButton}
-            onPress={() =>
-              setRememberLogin(current => !current)
-            }>
-            <View
-              style={[
-                styles.checkbox,
-                rememberLogin && styles.checkboxChecked,
-              ]}>
-              {rememberLogin ? (
-                <Check
-                  size={13}
-                  color="#FFFFFF"
-                  strokeWidth={3}
-                />
+                  <Text style={styles.errorText}>
+                    {errors.email}
+                  </Text>
+                </View>
               ) : null}
             </View>
-            <Text style={styles.optionText}>
-              Ghi nhớ đăng nhập
-            </Text>
-          </Pressable>
+
+            <View style={styles.field}>
+              <Text
+                style={[
+                  styles.label,
+                  errors.password && styles.errorLabel,
+                ]}>
+                Mật khẩu
+              </Text>
+
+              <View>
+                <TextInput
+                  style={[
+                    styles.input,
+                    styles.passwordInput,
+                    errors.password && styles.errorInput,
+                  ]}
+                  value={password}
+                  placeholder="Nhập mật khẩu"
+                  placeholderTextColor={colors.placeholder}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="password"
+                  returnKeyType="done"
+                  onSubmitEditing={handleLogin}
+                  onChangeText={value => {
+                    setPassword(value);
+                    clearError('password');
+                  }}
+                />
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    showPassword
+                      ? 'Ẩn mật khẩu'
+                      : 'Hiện mật khẩu'
+                  }
+                  style={styles.eyeButton}
+                  hitSlop={10}
+                  onPress={() =>
+                    setShowPassword(current => !current)
+                  }>
+                  {showPassword ? (
+                    <EyeOff
+                      size={20}
+                      color={colors.textSecondary}
+                    />
+                  ) : (
+                    <Eye
+                      size={20}
+                      color={colors.textSecondary}
+                    />
+                  )}
+                </Pressable>
+              </View>
+
+              {errors.password ? (
+                <View style={styles.errorRow}>
+                  <AlertCircle
+                    size={13}
+                    color={colors.error}
+                  />
+                  <Text style={styles.errorText}>
+                    {errors.password}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+
+          <View style={styles.optionsRow}>
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: rememberLogin }}
+              style={styles.rememberButton}
+              onPress={() =>
+                setRememberLogin(current => !current)
+              }>
+              <View
+                style={[
+                  styles.checkbox,
+                  rememberLogin && styles.checkboxChecked,
+                ]}>
+                {rememberLogin ? (
+                  <Check
+                    size={13}
+                    color="#FFFFFF"
+                    strokeWidth={3}
+                  />
+                ) : null}
+              </View>
+              <Text style={styles.optionText}>
+                Ghi nhớ đăng nhập
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={() => showComingSoon('Quên mật khẩu')}>
+              <Text style={styles.forgotText}>
+                Quên mật khẩu?
+              </Text>
+            </Pressable>
+          </View>
 
           <Pressable
             accessibilityRole="button"
-            hitSlop={8}
-            onPress={() => showComingSoon('Quên mật khẩu')}>
-            <Text style={styles.forgotText}>
-              Quên mật khẩu?
-            </Text>
-          </Pressable>
-        </View>
-
-        <Pressable
-          accessibilityRole="button"
-          style={({pressed}) => [
-            styles.primaryButton,
-            pressed && styles.pressed,
-          ]}
-          onPress={handleLogin}>
-          <Text style={styles.primaryButtonText}>Đăng nhập</Text>
-          <ChevronRight
-            size={19}
-            color="#FFFFFF"
-          />
-        </Pressable>
-
-        <View style={styles.dividerRow}>
-          <View style={styles.divider} />
-          <Text style={styles.dividerText}>
-            HOẶC TIẾP TỤC VỚI
-          </Text>
-          <View style={styles.divider} />
-        </View>
-
-        <View style={styles.socialList}>
-          <Pressable
-            accessibilityRole="button"
-            style={({pressed}) => [
-              styles.socialButton,
-              pressed && styles.pressed,
+            disabled={isSubmitting}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              pressed &&
+              !isSubmitting &&
+              styles.pressed,
             ]}
-            onPress={() => showComingSoon('Google')}>
-            <GoogleLogo />
-            <Text style={styles.socialText}>
-              Tiếp tục với Google
+            onPress={() => {
+              void handleLogin();
+            }}>
+            <Text style={styles.primaryButtonText}>
+              {isSubmitting
+                ? 'Đang đăng nhập...'
+                : 'Đăng nhập'}
             </Text>
+
+            {!isSubmitting ? (
+              <ChevronRight
+                size={19}
+                color="#FFFFFF"
+              />
+            ) : null}
           </Pressable>
 
-          <Pressable
-            accessibilityRole="button"
-            style={({pressed}) => [
-              styles.socialButton,
-              pressed && styles.pressed,
-            ]}
-            onPress={() => showComingSoon('Apple')}>
-            <AppleLogo />
-            <Text style={styles.socialText}>
-              Tiếp tục với Apple
+          <View style={styles.dividerRow}>
+            <View style={styles.divider} />
+            <Text style={styles.dividerText}>
+              HOẶC TIẾP TỤC VỚI
             </Text>
-          </Pressable>
-        </View>
+            <View style={styles.divider} />
+          </View>
 
-        <View style={styles.footerRow}>
-          <Text style={styles.footerText}>
-            Chưa có tài khoản?{' '}
-          </Text>
-          <Pressable
-            accessibilityRole="link"
-            onPress={() => navigation.navigate('Register')}>
-            <Text style={styles.footerLink}>Đăng ký</Text>
-          </Pressable>
-        </View>
+          <View style={styles.socialList}>
+            <Pressable
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.socialButton,
+                pressed && styles.pressed,
+              ]}
+              onPress={() => showComingSoon('Google')}>
+              <GoogleLogo />
+              <Text style={styles.socialText}>
+                Tiếp tục với Google
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.socialButton,
+                pressed && styles.pressed,
+              ]}
+              onPress={() => showComingSoon('Apple')}>
+              <AppleLogo />
+              <Text style={styles.socialText}>
+                Tiếp tục với Apple
+              </Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.footerRow}>
+            <Text style={styles.footerText}>
+              Chưa có tài khoản?{' '}
+            </Text>
+            <Pressable
+              accessibilityRole="link"
+              onPress={() => navigation.navigate('Register')}>
+              <Text style={styles.footerLink}>Đăng ký</Text>
+            </Pressable>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -395,7 +441,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: colors.primaryButton,
     shadowColor: colors.primaryButton,
-    shadowOffset: {width: 0, height: 8},
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
     shadowRadius: 12,
     elevation: 7,
@@ -510,7 +556,7 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     backgroundColor: colors.primaryButton,
     shadowColor: colors.primaryButton,
-    shadowOffset: {width: 0, height: 4},
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.28,
     shadowRadius: 8,
     elevation: 5,
