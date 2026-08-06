@@ -1,12 +1,13 @@
+import { StatusBar } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import React from 'react';
-import {StatusBar} from 'react-native';
-import {NavigationContainer} from '@react-navigation/native';
-import {SafeAreaProvider} from 'react-native-safe-area-context';
 
-import {colors} from './src/constants/colors';
-import {AuthNavigator} from './src/navigation/AuthNavigator';
+import { colors } from './src/constants/colors';
+import { AuthNavigator } from './src/navigation/AuthNavigator';
 
 export default function App() {
+  
   return (
     <SafeAreaProvider>
       <StatusBar
