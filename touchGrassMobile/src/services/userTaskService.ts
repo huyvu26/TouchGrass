@@ -5,6 +5,9 @@ import type {
   CompleteTaskResponse,
   GpsPoint,
   GpsVerificationResponse,
+  MlKitLabel,
+  PhotoVerificationResponse,
+  ScreenTimerVerificationResponse,
   StartUserTaskResponse,
   UpdateUserTaskProgressResponse,
   UserTaskDetail,
@@ -138,4 +141,67 @@ export function finishGpsTracking(
       body: {points},
     },
   );
+}
+
+export function startScreenTimer(
+  userTaskId: string,
+): Promise<ScreenTimerVerificationResponse> {
+  return authorizedRequest<ScreenTimerVerificationResponse>(
+    `/user-tasks/${encodeURIComponent(userTaskId)}/screen-timer/start`,
+    {method: 'POST'},
+  );
+}
+
+export function finishScreenTimer(
+  userTaskId: string,
+  screenOffAt: string,
+  screenOnAt: string,
+): Promise<ScreenTimerVerificationResponse> {
+  return authorizedRequest<ScreenTimerVerificationResponse>(
+    `/user-tasks/${encodeURIComponent(userTaskId)}/screen-timer/finish`,
+    {
+      method: 'POST',
+      body: {screenOffAt, screenOnAt},
+    },
+  );
+}
+
+export async function verifyUserTaskPhoto(
+  userTaskId: string,
+  imageUri: string,
+  labels: MlKitLabel[],
+  capturedAt: string,
+): Promise<PhotoVerificationResponse> {
+  const accessToken = await getAccessToken();
+
+  if (!accessToken) {
+    throw new Error('Bạn chưa đăng nhập. Vui lòng đăng nhập lại.');
+  }
+
+  const formData = new FormData();
+  formData.append('image', {
+    uri: imageUri,
+    type: 'image/jpeg',
+    name: 'camera.jpg',
+  } as unknown as Blob);
+  formData.append('labels', JSON.stringify(labels));
+  formData.append('capturedAt', capturedAt);
+
+  const response = await fetch(
+    `${API_BASE_URL}/user-tasks/${encodeURIComponent(userTaskId)}/photo/verify`,
+    {
+      method: 'POST',
+      headers: {Authorization: `Bearer ${accessToken}`},
+      body: formData,
+    },
+  );
+  const data = (await response.json()) as
+    | PhotoVerificationResponse
+    | ApiErrorResponse;
+
+  if (!response.ok) {
+    throw new Error(getErrorMessage(data as ApiErrorResponse));
+  }
+
+  return data as PhotoVerificationResponse;
 }

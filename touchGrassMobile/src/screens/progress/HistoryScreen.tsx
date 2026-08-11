@@ -1,5 +1,6 @@
-import React, {useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,19 +14,10 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {ScreenHeader} from '../../components/ScreenHeader';
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
+import {getTaskHistory} from '../../services/insightsService';
+import type {HistoryFilter, HistoryResponse} from '../../types/insights';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'History'>;
-type Status = 'done' | 'invalid' | 'cancelled';
-type Filter = 'all' | Status;
-
-const HISTORY = [
-  {id: 1, emoji: '🌅', title: 'Đi dạo buổi sáng', type: 'Đi bộ', date: 'Hôm nay, 7:20 SA', duration: '28 phút', xp: '+50 XP', lp: '+10 LP', status: 'done'},
-  {id: 2, emoji: '📸', title: 'Chụp ảnh cây xanh', type: 'Chụp ảnh', date: 'Hôm nay, 6:55 SA', duration: '5 phút', xp: '+35 XP', lp: '+8 LP', status: 'done'},
-  {id: 3, emoji: '☀️', title: 'Rời khỏi màn hình', type: 'Nghỉ ngơi', date: 'Hôm qua, 3:10 CH', duration: '30 phút', xp: '0 XP', lp: '0 LP', status: 'invalid'},
-  {id: 4, emoji: '🦋', title: 'Quan sát côn trùng', type: 'Chụp ảnh', date: 'Hôm qua, 10:00 SA', duration: '—', xp: '0 XP', lp: '0 LP', status: 'cancelled'},
-  {id: 5, emoji: '🏆', title: 'Thám hiểm công viên', type: 'Đi bộ', date: 'T6, 26/07', duration: '62 phút', xp: '+150 XP', lp: '+40 LP', status: 'done'},
-  {id: 6, emoji: '🌿', title: 'Tìm màu xanh', type: 'Chụp ảnh', date: 'T5, 25/07', duration: '12 phút', xp: '+35 XP', lp: '+7 LP', status: 'done'},
-] as const;
 
 const STATUS = {
   done: {label: 'Đã hoàn thành', color: colors.primaryButton, background: colors.surfaceSoft},
@@ -33,96 +25,138 @@ const STATUS = {
   cancelled: {label: 'Đã hủy', color: colors.error, background: colors.errorBackground},
 } as const;
 
+const TYPE_LABELS = {
+  GPS_DISTANCE: 'Đi bộ GPS',
+  PHOTO_AI: 'Ảnh và AI',
+  SCREEN_OFF_TIMER: 'Không màn hình',
+  MANUAL_CHECKIN: 'Xác nhận thủ công',
+} as const;
+
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds <= 0) {
+    return 'Không ghi nhận';
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remaining = seconds % 60;
+  return minutes > 0 ? `${minutes} phút ${remaining} giây` : `${remaining} giây`;
+}
+
 export function HistoryScreen({navigation}: Props) {
-  const [filter, setFilter] = useState<Filter>('all');
-  const items =
-    filter === 'all'
-      ? HISTORY
-      : HISTORY.filter(item => item.status === filter);
+  const [filter, setFilter] = useState<HistoryFilter>('all');
+  const [data, setData] = useState<HistoryResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadHistory = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setData(await getTaskHistory(filter, 1, 20));
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Không thể tải lịch sử nhiệm vụ.',
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [filter]);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
+
+  const counts = data?.counts ?? {all: 0, done: 0, invalid: 0, cancelled: 0};
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <ScreenHeader
-        title="Lịch sử hoạt động"
-        onBack={() => navigation.goBack()}
-      />
+      <ScreenHeader title="Lịch sử hoạt động" onBack={() => navigation.goBack()} />
       <View style={styles.filters}>
         {(
           [
-            ['all', `Tất cả · ${HISTORY.length}`],
-            ['done', '✅ 4'],
-            ['invalid', '⚠️ 1'],
-            ['cancelled', '✕ 1'],
-          ] as Array<[Filter, string]>
+            ['all', `Tất cả · ${counts.all}`],
+            ['done', `✓ ${counts.done}`],
+            ['invalid', `⚠ ${counts.invalid}`],
+            ['cancelled', `✕ ${counts.cancelled}`],
+          ] as Array<[HistoryFilter, string]>
         ).map(([key, label]) => (
           <Pressable
             key={key}
-            style={[
-              styles.filter,
-              filter === key && styles.filterActive,
-            ]}
+            style={[styles.filter, filter === key && styles.filterActive]}
             onPress={() => setFilter(key)}>
-            <Text
-              style={[
-                styles.filterText,
-                filter === key && styles.filterTextActive,
-              ]}>
+            <Text style={[styles.filterText, filter === key && styles.filterTextActive]}>
               {label}
             </Text>
           </Pressable>
         ))}
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.list}>
-        {items.map(item => {
-          const status = STATUS[item.status];
-
-          return (
-            <Pressable key={item.id} style={styles.card}>
-              <View style={styles.emojiBox}>
-                <Text style={styles.emoji}>{item.emoji}</Text>
-              </View>
-              <View style={styles.cardContent}>
-                <View style={styles.cardTitleRow}>
-                  <Text style={styles.cardTitle}>{item.title}</Text>
-                  <View
-                    style={[
-                      styles.status,
-                      {backgroundColor: status.background},
-                    ]}>
-                    <Text
-                      style={[
-                        styles.statusText,
-                        {color: status.color},
-                      ]}>
-                      {status.label}
-                    </Text>
+      {loading ? (
+        <View style={styles.stateContainer}>
+          <ActivityIndicator size="large" color={colors.primaryButton} />
+          <Text style={styles.stateText}>Đang tải lịch sử...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.stateContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <Pressable style={styles.retryButton} onPress={loadHistory}>
+            <Text style={styles.retryText}>Thử lại</Text>
+          </Pressable>
+        </View>
+      ) : data?.items.length === 0 ? (
+        <View style={styles.stateContainer}>
+          <Text style={styles.emptyTitle}>Chưa có hoạt động phù hợp</Text>
+          <Text style={styles.stateText}>Các nhiệm vụ kết thúc sẽ xuất hiện tại đây.</Text>
+        </View>
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.list}>
+          {data?.items.map(item => {
+            const status = STATUS[item.status];
+            return (
+              <Pressable
+                key={item.id}
+                style={styles.card}
+                onPress={() => navigation.navigate('TaskDetail', {taskId: item.taskId})}>
+                <View style={styles.emojiBox}>
+                  <Text style={styles.emoji}>{item.emoji}</Text>
+                </View>
+                <View style={styles.cardContent}>
+                  <View style={styles.cardTitleRow}>
+                    <Text style={styles.cardTitle}>{item.title}</Text>
+                    <View style={[styles.status, {backgroundColor: status.background}]}>
+                      <Text style={[styles.statusText, {color: status.color}]}>{status.label}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.meta}>
+                    {TYPE_LABELS[item.verificationType]} · {formatDate(item.activityAt)}
+                  </Text>
+                  <View style={styles.rewardRow}>
+                    <Text style={styles.duration}>⏱ {formatDuration(item.durationSeconds)}</Text>
+                    {item.status === 'done' && item.rewardGranted ? (
+                      <>
+                        <Text style={styles.xp}>+{item.rewardXp} XP</Text>
+                        <Text style={styles.lp}>+{item.rewardLp} LP</Text>
+                      </>
+                    ) : null}
                   </View>
                 </View>
-                <Text style={styles.meta}>
-                  {item.type} · {item.date}
-                </Text>
-                <View style={styles.rewardRow}>
-                  {item.duration !== '—' ? (
-                    <Text style={styles.duration}>
-                      ⏱ {item.duration}
-                    </Text>
-                  ) : null}
-                  {item.status === 'done' ? (
-                    <>
-                      <Text style={styles.xp}>{item.xp}</Text>
-                      <Text style={styles.lp}>{item.lp}</Text>
-                    </>
-                  ) : null}
-                </View>
-              </View>
-              <ChevronRight size={16} color={colors.textSecondary} />
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+                <ChevronRight size={16} color={colors.textSecondary} />
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -148,4 +182,10 @@ const styles = StyleSheet.create({
   duration: {color: colors.textSecondary, fontSize: 10},
   xp: {color: colors.primaryButton, fontSize: 10, fontWeight: '700'},
   lp: {color: colors.primary, fontSize: 10, fontWeight: '700'},
+  stateContainer: {flex: 1, paddingHorizontal: 36, alignItems: 'center', justifyContent: 'center', rowGap: 12},
+  stateText: {color: colors.textSecondary, fontSize: 13, textAlign: 'center'},
+  emptyTitle: {color: colors.text, fontSize: 17, fontWeight: '800'},
+  errorText: {color: colors.error, fontSize: 13, lineHeight: 19, textAlign: 'center'},
+  retryButton: {paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, backgroundColor: colors.primaryButton},
+  retryText: {color: '#FFFFFF', fontSize: 13, fontWeight: '700'},
 });

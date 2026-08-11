@@ -19,6 +19,7 @@ import {ProfileScreen} from '../screens/profile/ProfileScreen';
 import {SettingsScreen} from '../screens/profile/SettingsScreen';
 import {RewardScreen} from '../screens/rewards/RewardScreen';
 import {GPSTrackerScreen} from '../screens/tasks/GPSTrackerScreen';
+import {ScreenTimerScreen} from '../screens/tasks/ScreenTimerScreen';
 import {TaskDetailScreen} from '../screens/tasks/TaskDetailScreen';
 import {TaskHubScreen} from '../screens/tasks/TaskHubScreen';
 import {AICameraScreen} from '../screens/verification/AICameraScreen';
@@ -89,6 +90,11 @@ export function AuthNavigator() {
       <Stack.Screen
         name="GPSTracker"
         component={GPSTrackerScreen}
+      />
+
+      <Stack.Screen
+        name="ScreenTimer"
+        component={ScreenTimerScreen}
       />
 
       <Stack.Screen

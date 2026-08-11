@@ -105,7 +105,8 @@ export function TaskDetailScreen({navigation, route}: Props) {
 
     const supported =
       task.verificationType === 'GPS_DISTANCE' ||
-      task.verificationType === 'PHOTO_AI';
+      task.verificationType === 'PHOTO_AI' ||
+      task.verificationType === 'SCREEN_OFF_TIMER';
 
     if (!supported) {
       Alert.alert(
@@ -124,8 +125,12 @@ export function TaskDetailScreen({navigation, route}: Props) {
         navigation.navigate('GPSTracker', {
           userTaskId: result.id,
         });
-      } else {
+      } else if (task.verificationType === 'PHOTO_AI') {
         navigation.navigate('AICamera', {
+          userTaskId: result.id,
+        });
+      } else {
+        navigation.navigate('ScreenTimer', {
           userTaskId: result.id,
         });
       }
@@ -286,20 +291,24 @@ export function TaskDetailScreen({navigation, route}: Props) {
             </View>
           ))}
 
-          <View style={styles.privacyCard}>
-            <MapPin size={17} color={colors.primaryButton} />
-            <Text style={styles.privacyText}>
-              Vị trí chỉ được ghi trong khi làm nhiệm vụ và được
-              xóa sau khi xác minh.
-            </Text>
-          </View>
-          <View style={styles.warningCard}>
-            <Shield size={17} color={colors.error} />
-            <Text style={styles.warningText}>
-              Hệ thống tự phát hiện gian lận. Đi bộ trong nhà hoặc
-              dùng xe sẽ không được tính.
-            </Text>
-          </View>
+          {task.verificationType === 'GPS_DISTANCE' ? (
+            <>
+              <View style={styles.privacyCard}>
+                <MapPin size={17} color={colors.primaryButton} />
+                <Text style={styles.privacyText}>
+                  Vị trí chỉ được ghi trong khi làm nhiệm vụ và được
+                  xóa sau khi xác minh.
+                </Text>
+              </View>
+              <View style={styles.warningCard}>
+                <Shield size={17} color={colors.error} />
+                <Text style={styles.warningText}>
+                  Hệ thống tự phát hiện gian lận. Đi bộ trong nhà hoặc
+                  dùng xe sẽ không được tính.
+                </Text>
+              </View>
+            </>
+          ) : null}
 
           <Pressable
             disabled={isStarting}

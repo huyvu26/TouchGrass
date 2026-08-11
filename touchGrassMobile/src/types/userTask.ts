@@ -18,6 +18,29 @@ export type UserTaskVerificationStatus =
   | 'PASSED'
   | 'FAILED';
 
+export interface MlKitLabel {
+  text: string;
+  confidence: number;
+}
+
+export interface PhotoVerificationResponse {
+  userTaskId: string;
+  verificationStatus: UserTaskVerificationStatus;
+  passed: boolean;
+  photoAccepted: boolean;
+  progress: number;
+  targetValue: number;
+  acceptedPhotoCount: number;
+  requiredPhotoCount: number;
+  result: {
+    label: string | null;
+    confidence: number | null;
+    capturedAt: string | null;
+  };
+  failureReason: 'LABEL_NOT_ACCEPTED' | 'LOW_CONFIDENCE' | null;
+  alreadyProcessed: boolean;
+}
+
 export interface GpsPoint {
   latitude: number;
   longitude: number;
@@ -40,6 +63,22 @@ export interface GpsVerificationResponse {
     sampleCount: number;
   };
   failureReason: string | null;
+  alreadyProcessed: boolean;
+}
+
+export interface ScreenTimerVerificationResponse {
+  userTaskId: string;
+  verificationStatus: UserTaskVerificationStatus;
+  passed: boolean;
+  progress: number;
+  targetValue: number;
+  targetSeconds: number;
+  timerStartedAt: string | null;
+  timerEndedAt: string | null;
+  screenOffAt: string | null;
+  screenOnAt: string | null;
+  durationSeconds: number;
+  failureReason: 'TARGET_NOT_REACHED' | null;
   alreadyProcessed: boolean;
 }
 

@@ -1,7 +1,4 @@
-import React, {
-  useEffect,
-  useState,
-} from 'react';
+import React, {useCallback, useState} from 'react';
 
 import {
   Alert,
@@ -20,6 +17,7 @@ import {
   Settings,
 } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import {useFocusEffect} from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomTabBar } from '../../components/BottomTabBar';
@@ -27,9 +25,11 @@ import { colors } from '../../constants/colors';
 import {
   getMyProfile,
 } from '../../services/userService';
+import {getTaskSummary} from '../../services/insightsService';
 import type {
   AuthUser,
 } from '../../types/auth';
+import type {ProfileSummaryResponse} from '../../types/insights';
 
 import type { AuthStackParamList } from '../../navigation/types';
 
@@ -38,13 +38,21 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'Profile'>;
 export function ProfileScreen({ navigation }: Props) {
   const [profile, setProfile] =
     useState<AuthUser | null>(null);
+  const [summary, setSummary] =
+    useState<ProfileSummaryResponse | null>(null);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
+    let active = true;
     async function loadProfile() {
       try {
-        const user = await getMyProfile();
-
-        setProfile(user);
+        const [user, taskSummary] = await Promise.all([
+          getMyProfile(),
+          getTaskSummary(),
+        ]);
+        if (active) {
+          setProfile(user);
+          setSummary(taskSummary);
+        }
       } catch (error) {
         const message =
           error instanceof Error
@@ -58,8 +66,11 @@ export function ProfileScreen({ navigation }: Props) {
       }
     }
 
-    void loadProfile();
-  }, []);
+    loadProfile();
+    return () => {
+      active = false;
+    };
+  }, []));
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.header}>
@@ -106,24 +117,22 @@ export function ProfileScreen({ navigation }: Props) {
 
         <View style={styles.xpCard}>
           <View style={styles.xpHeader}>
-            <Text style={styles.xpTitle}>Tiến độ cấp độ</Text>
+            <Text style={styles.xpTitle}>Số dư tài khoản</Text>
             <Text style={styles.xpValue}>
               {profile?.xp ?? 0} XP
             </Text>
           </View>
-          <View style={styles.xpTrack}>
-            <View style={styles.xpProgress} />
-          </View>
           <Text style={styles.xpCaption}>
-            Còn 550 XP để lên Lvl 6 Adventurer
+            {profile?.leafPoints ?? 0} Leaf Points ·{' '}
+            {profile?.unlockMinutesBalance ?? 0} phút mở khóa
           </Text>
         </View>
 
         <View style={styles.statRow}>
           {[
-            ['43', 'Nhiệm vụ'],
-            ['124.5', 'Km đã đi'],
-            ['38h', 'Đã tiết kiệm'],
+            [String(summary?.completedTasks ?? 0), 'Nhiệm vụ'],
+            [String(summary?.totalWalkingKilometers ?? 0), 'Km đã đi'],
+            [`${summary?.totalOfflineHours ?? 0}h`, 'Không màn hình'],
           ].map(([value, label]) => (
             <View key={label} style={styles.statCard}>
               <Text style={styles.statValue}>{value}</Text>
@@ -154,19 +163,19 @@ export function ProfileScreen({ navigation }: Props) {
             {
               icon: Medal,
               label: 'Bộ sưu tập huy hiệu',
-              subtitle: '4/8 huy hiệu',
+              subtitle: 'Xem thành tích đã mở khóa',
               action: () => navigation.navigate('Badges'),
             },
             {
               icon: History,
               label: 'Lịch sử hoạt động',
-              subtitle: '18 nhiệm vụ',
+              subtitle: `${summary?.historyItems ?? 0} hoạt động`,
               action: () => navigation.navigate('History'),
             },
             {
               icon: Bell,
               label: 'Thông báo',
-              subtitle: '3 chưa đọc',
+              subtitle: 'Xem thông báo',
               action: () => navigation.navigate('Notifications'),
             },
           ].map(item => {

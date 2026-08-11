@@ -1,3 +1,5 @@
+import type {MlKitLabel} from '../types/userTask';
+
 export type AuthStackParamList = {
   Splash: undefined;
   Onboarding: undefined;
@@ -16,11 +18,17 @@ export type AuthStackParamList = {
   GPSTracker: {
     userTaskId: string;
   };
+  ScreenTimer: {
+    userTaskId: string;
+  };
   AICamera: {
     userTaskId: string;
   };
   AIAnalysis: {
     userTaskId: string;
+    imageUri: string;
+    capturedAt: string;
+    labels: MlKitLabel[];
   };
   AppLock: undefined;
   Reward: {
