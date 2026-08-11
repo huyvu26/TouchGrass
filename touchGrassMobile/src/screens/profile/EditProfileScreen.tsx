@@ -1,5 +1,6 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,6 +15,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {ScreenHeader} from '../../components/ScreenHeader';
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
+import {getMyProfile} from '../../services/userService';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
@@ -28,15 +30,39 @@ const GOALS = [
 ] as const;
 
 export function EditProfileScreen({navigation}: Props) {
-  const [name, setName] = useState('Hải Đăng');
-  const [displayName, setDisplayName] = useState('HaiDang');
-  const [email, setEmail] = useState('haidang@email.com');
-  const [dob, setDob] = useState('15/08/1998');
-  const [goals, setGoals] = useState<string[]>([
-    'Giảm mạng xã hội',
-    'Vận động nhiều hơn',
-  ]);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [dob, setDob] = useState('');
+  const [goals, setGoals] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    async function loadProfile() {
+      try {
+        const user = await getMyProfile();
+        setName(user.fullName);
+        setEmail(user.email);
+        setDob(user.dateOfBirth ?? '');
+        setGoals(user.goals);
+      } catch (error) {
+        Alert.alert(
+          'Lỗi tải hồ sơ',
+          error instanceof Error
+            ? error.message
+            : 'Không thể tải thông tin tài khoản.',
+        );
+      }
+    }
+
+    loadProfile();
+  }, []);
+
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .slice(-2)
+    .map(part => part.charAt(0).toUpperCase())
+    .join('') || '?';
 
   function toggleGoal(goal: string) {
     setGoals(current =>
@@ -62,7 +88,7 @@ export function EditProfileScreen({navigation}: Props) {
         contentContainerStyle={styles.content}>
         <View style={styles.avatarSection}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>HĐ</Text>
+            <Text style={styles.avatarText}>{initials}</Text>
             <Pressable style={styles.cameraButton}>
               <Camera size={14} color="#FFFFFF" />
             </Pressable>
@@ -74,7 +100,6 @@ export function EditProfileScreen({navigation}: Props) {
 
         {[
           ['Họ và tên', name, setName],
-          ['Tên hiển thị', displayName, setDisplayName],
           ['Địa chỉ email', email, setEmail],
           ['Ngày sinh', dob, setDob],
         ].map(([label, value, setter]) => (

@@ -1,5 +1,7 @@
-import React from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,32 +25,141 @@ import Svg, {
 
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
+import {getTaskById} from '../../services/taskService';
+import type {
+  Task,
+  TaskDifficulty,
+  TaskFrequency,
+  TaskTargetUnit,
+  TaskVerificationType,
+} from '../../types/task';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
   'TaskDetail'
 >;
 
-const REWARDS = [
-  {icon: '⚡', value: '+50 XP', color: colors.lime},
-  {icon: '🍃', value: '+10 LP', color: colors.surfaceSoft},
-  {icon: '🔓', value: '+15 phút', color: '#DCEFFD'},
-] as const;
+const DIFFICULTY_LABELS: Record<TaskDifficulty, string> = {
+  EASY: 'Dễ',
+  MEDIUM: 'Trung bình',
+  HARD: 'Khó',
+};
 
-const META = [
-  {label: '📍 Khoảng cách', value: '2 km'},
-  {label: '⏱️ Thời gian ước tính', value: '20–30 phút'},
-  {label: '📡 Xác minh', value: 'GPS + bước chân'},
-  {label: '⏳ Hết hạn', value: 'Còn 12 giờ'},
-] as const;
+const FREQUENCY_LABELS: Record<TaskFrequency, string> = {
+  DAILY: 'Hằng ngày',
+  WEEKLY: 'Hằng tuần',
+  ANYTIME: 'Bất kỳ lúc nào',
+};
 
-const INSTRUCTIONS = [
-  'Ra ngoài trời và bắt đầu đi bộ trong khu vực mở như công viên, vỉa hè hoặc đường làng.',
-  'Duy trì tốc độ ổn định. Ứng dụng sẽ tự theo dõi khoảng cách bằng GPS.',
-  'Sau khi đủ 2 km, bấm hoàn thành để nhận thưởng và mở khóa thời gian màn hình.',
-] as const;
+const VERIFICATION_LABELS: Record<TaskVerificationType, string> = {
+  GPS_DISTANCE: 'GPS và khoảng cách',
+  PHOTO_AI: 'Ảnh và AI',
+  SCREEN_OFF_TIMER: 'Bộ đếm tắt màn hình',
+  MANUAL_CHECKIN: 'Xác nhận thủ công',
+};
 
-export function TaskDetailScreen({navigation}: Props) {
+function formatTarget(value: number, unit: TaskTargetUnit): string {
+  if (unit === 'METER') {
+    return value >= 1000 ? `${value / 1000} km` : `${value} m`;
+  }
+
+  if (unit === 'MINUTE') {
+    return `${value} phút`;
+  }
+
+  return `${value} ảnh`;
+}
+
+export function TaskDetailScreen({navigation, route}: Props) {
+  const [task, setTask] = useState<Task | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadTask = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      setTask(await getTaskById(route.params.taskId));
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Không thể tải chi tiết nhiệm vụ.',
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [route.params.taskId]);
+
+  useEffect(() => {
+    loadTask();
+  }, [loadTask]);
+
+  function startTask() {
+    if (!task) {
+      return;
+    }
+
+    if (task.verificationType === 'GPS_DISTANCE') {
+      navigation.navigate('GPSTracker');
+      return;
+    }
+
+    if (task.verificationType === 'PHOTO_AI') {
+      navigation.navigate('AICamera');
+      return;
+    }
+
+    Alert.alert(
+      'Chưa có màn hình xác minh',
+      'Nhóm backend cần bổ sung API bắt đầu và hoàn thành nhiệm vụ cho loại này.',
+    );
+  }
+
+  if (loading || error || !task) {
+    return (
+      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+        <View style={styles.stateHeader}>
+          <Pressable
+            style={styles.stateBackButton}
+            onPress={() => navigation.goBack()}>
+            <ChevronLeft size={21} color={colors.text} />
+          </Pressable>
+        </View>
+        <View style={styles.stateContainer}>
+          {loading ? (
+            <>
+              <ActivityIndicator size="large" color={colors.primaryButton} />
+              <Text style={styles.stateText}>Đang tải chi tiết nhiệm vụ...</Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.errorText}>
+                {error ?? 'Không tìm thấy nhiệm vụ.'}
+              </Text>
+              <Pressable style={styles.retryButton} onPress={loadTask}>
+                <Text style={styles.retryButtonText}>Thử lại</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const rewards = [
+    {icon: '⚡', value: `+${task.rewardXp} XP`, color: colors.lime},
+    {icon: '🍃', value: `+${task.rewardLp} LP`, color: colors.surfaceSoft},
+    {icon: '🔓', value: `+${task.unlockMinutes} phút`, color: '#DCEFFD'},
+  ];
+  const meta = [
+    {label: '🎯 Mục tiêu', value: formatTarget(task.targetValue, task.targetUnit)},
+    {label: '⏱️ Thời gian ước tính', value: `${task.estimatedMinutes} phút`},
+    {label: '📡 Xác minh', value: VERIFICATION_LABELS[task.verificationType]},
+    {label: '📅 Tần suất', value: FREQUENCY_LABELS[task.frequency]},
+  ];
+
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <ScrollView
@@ -98,24 +209,26 @@ export function TaskDetailScreen({navigation}: Props) {
           </Pressable>
 
           <View style={styles.difficultyChip}>
-            <Text style={styles.difficultyText}>Dễ</Text>
+            <Text style={styles.difficultyText}>
+              {DIFFICULTY_LABELS[task.difficulty]}
+            </Text>
           </View>
           <View style={styles.expiryChip}>
             <Clock size={12} color={colors.textSecondary} />
-            <Text style={styles.expiryText}>Còn 12 giờ</Text>
+            <Text style={styles.expiryText}>
+              {FREQUENCY_LABELS[task.frequency]}
+            </Text>
           </View>
         </View>
 
         <View style={styles.body}>
-          <Text style={styles.title}>Đi dạo buổi sáng</Text>
+          <Text style={styles.title}>{task.title}</Text>
           <Text style={styles.description}>
-            Bắt đầu ngày mới với một buổi đi bộ nhẹ nhàng ngoài
-            trời. Hít thở không khí trong lành và để tâm trí thư
-            giãn trước khi bắt đầu công việc.
+            {task.description}
           </Text>
 
           <View style={styles.rewardRow}>
-            {REWARDS.map(reward => (
+            {rewards.map(reward => (
               <View
                 key={reward.value}
                 style={[
@@ -129,7 +242,7 @@ export function TaskDetailScreen({navigation}: Props) {
           </View>
 
           <View style={styles.metaCard}>
-            {META.map(item => (
+            {meta.map(item => (
               <View key={item.label} style={styles.metaItem}>
                 <Text style={styles.metaLabel}>{item.label}</Text>
                 <Text style={styles.metaValue}>{item.value}</Text>
@@ -138,7 +251,7 @@ export function TaskDetailScreen({navigation}: Props) {
           </View>
 
           <Text style={styles.sectionTitle}>Hướng dẫn</Text>
-          {INSTRUCTIONS.map((instruction, index) => (
+          {task.instructions.map((instruction, index) => (
             <View key={instruction} style={styles.instruction}>
               <View style={styles.step}>
                 <Text style={styles.stepText}>{index + 1}</Text>
@@ -169,7 +282,7 @@ export function TaskDetailScreen({navigation}: Props) {
               styles.primaryButton,
               pressed && styles.pressed,
             ]}
-            onPress={() => navigation.navigate('GPSTracker')}>
+            onPress={startTask}>
             <Text style={styles.primaryButtonText}>
               🌿 Bắt đầu nhiệm vụ
             </Text>
@@ -187,6 +300,33 @@ export function TaskDetailScreen({navigation}: Props) {
 
 const styles = StyleSheet.create({
   screen: {flex: 1, backgroundColor: colors.background},
+  stateHeader: {height: 60, paddingHorizontal: 16, justifyContent: 'center'},
+  stateBackButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+  },
+  stateContainer: {
+    flex: 1,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    rowGap: 12,
+  },
+  stateText: {color: colors.textSecondary, fontSize: 13, textAlign: 'center'},
+  errorText: {color: colors.error, fontSize: 13, lineHeight: 19, textAlign: 'center'},
+  retryButton: {
+    height: 40,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: colors.primaryButton,
+  },
+  retryButtonText: {color: '#FFFFFF', fontSize: 13, fontWeight: '700'},
   content: {paddingBottom: 20},
   hero: {height: 220, position: 'relative', overflow: 'hidden'},
   backButton: {

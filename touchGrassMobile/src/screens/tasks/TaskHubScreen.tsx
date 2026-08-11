@@ -1,5 +1,6 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,159 +21,47 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
+import {getTasks} from '../../services/taskService';
+import {getMyProfile} from '../../services/userService';
+import type {
+  Task,
+  TaskDifficulty,
+  TaskFrequency,
+} from '../../types/task';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
   'TaskHub'
 >;
 
-type TabKey = 'daily' | 'random' | 'special';
-
-interface Task {
-  id: number;
-  emoji: string;
-  title: string;
-  subtitle: string;
-  xp: number;
-  lp: number;
-  difficulty:
-    | 'Dễ'
-    | 'Trung bình'
-    | 'Khó'
-    | 'Thử thách'
-    | 'Sử thi';
-  time: string;
-  progress: number;
-  goal: number;
-  progressUnit?: string;
-}
-
-const TASKS: Record<TabKey, Task[]> = {
-  daily: [
-    {
-      id: 1,
-      emoji: '🌅',
-      title: 'Đi dạo buổi sáng',
-      subtitle: 'Đi bộ 2km trước 9 giờ sáng',
-      xp: 50,
-      lp: 10,
-      difficulty: 'Dễ',
-      time: 'còn 2g 15p',
-      progress: 1.2,
-      goal: 2,
-      progressUnit: 'km',
-    },
-    {
-      id: 2,
-      emoji: '🌿',
-      title: 'Tìm màu xanh',
-      subtitle: 'Chụp ảnh cây xanh ngoài trời',
-      xp: 35,
-      lp: 0,
-      difficulty: 'Dễ',
-      time: 'còn 14g',
-      progress: 0,
-      goal: 1,
-    },
-    {
-      id: 3,
-      emoji: '☀️',
-      title: 'Rời khỏi màn hình',
-      subtitle: '30 phút không dùng điện thoại',
-      xp: 75,
-      lp: 15,
-      difficulty: 'Trung bình',
-      time: 'còn 10g',
-      progress: 12,
-      goal: 30,
-      progressUnit: 'p',
-    },
-  ],
-  random: [
-    {
-      id: 4,
-      emoji: '🦋',
-      title: 'Quan sát côn trùng',
-      subtitle: 'Tìm và chụp ảnh 1 con bướm hoặc ong',
-      xp: 45,
-      lp: 8,
-      difficulty: 'Trung bình',
-      time: 'hết hôm nay',
-      progress: 0,
-      goal: 1,
-    },
-    {
-      id: 5,
-      emoji: '💧',
-      title: 'Tìm nguồn nước',
-      subtitle: 'Chụp ảnh suối, hồ hoặc mưa',
-      xp: 60,
-      lp: 12,
-      difficulty: 'Khó',
-      time: 'hết hôm nay',
-      progress: 0,
-      goal: 1,
-    },
-  ],
-  special: [
-    {
-      id: 6,
-      emoji: '🏆',
-      title: 'Thám hiểm công viên',
-      subtitle: 'Đi bộ 5km trong công viên tự nhiên',
-      xp: 150,
-      lp: 40,
-      difficulty: 'Thử thách',
-      time: 'còn 3 ngày',
-      progress: 0,
-      goal: 5,
-      progressUnit: 'km',
-    },
-    {
-      id: 7,
-      emoji: '🌳',
-      title: '42 loại cây',
-      subtitle: 'Chụp ảnh 42 loại cây khác nhau',
-      xp: 500,
-      lp: 100,
-      difficulty: 'Sử thi',
-      time: 'còn 7 ngày',
-      progress: 38,
-      goal: 42,
-    },
-  ],
-};
-
-const TABS: Array<{key: TabKey; label: string}> = [
-  {key: 'daily', label: 'Hằng ngày'},
-  {key: 'random', label: 'Ngẫu nhiên'},
-  {key: 'special', label: 'Đặc biệt'},
+const TABS: Array<{key: TaskFrequency; label: string}> = [
+  {key: 'DAILY', label: 'Hằng ngày'},
+  {key: 'WEEKLY', label: 'Hằng tuần'},
+  {key: 'ANYTIME', label: 'Bất kỳ lúc nào'},
 ];
 
 const DIFFICULTY_COLORS: Record<
-  Task['difficulty'],
+  TaskDifficulty,
   {text: string; background: string}
 > = {
-  Dễ: {
+  EASY: {
     text: colors.primaryButton,
     background: 'rgba(36, 107, 5, 0.1)',
   },
-  'Trung bình': {
+  MEDIUM: {
     text: '#B08000',
     background: 'rgba(176, 128, 0, 0.1)',
   },
-  Khó: {
+  HARD: {
     text: '#E0600A',
     background: 'rgba(224, 96, 10, 0.1)',
   },
-  'Thử thách': {
-    text: colors.error,
-    background: 'rgba(186, 26, 26, 0.1)',
-  },
-  'Sử thi': {
-    text: '#7B00D4',
-    background: 'rgba(123, 0, 212, 0.1)',
-  },
+};
+
+const DIFFICULTY_LABELS: Record<TaskDifficulty, string> = {
+  EASY: 'Dễ',
+  MEDIUM: 'Trung bình',
+  HARD: 'Khó',
 };
 
 interface BottomNavProps {
@@ -241,16 +130,45 @@ function BottomNavigation({
 }
 
 export function TaskHubScreen({navigation}: Props) {
-  const [activeTab, setActiveTab] = useState<TabKey>('daily');
-  const tasks = TASKS[activeTab];
+  const [activeTab, setActiveTab] =
+    useState<TaskFrequency>('DAILY');
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [xp, setXp] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const tasks = allTasks.filter(task => task.frequency === activeTab);
+
+  async function loadTasks() {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const taskData = await getTasks();
+      setAllTasks(taskData);
+
+      try {
+        const profile = await getMyProfile();
+        setXp(profile.xp);
+      } catch {
+        setXp(0);
+      }
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Không thể tải danh sách nhiệm vụ.',
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadTasks();
+  }, []);
 
   function handleTask(task: Task) {
-    if (task.id === 2 || task.id === 4 || task.id === 5 || task.id === 7) {
-      navigation.navigate('AICamera');
-      return;
-    }
-
-    navigation.navigate('TaskDetail');
+    navigation.navigate('TaskDetail', {taskId: task._id});
   }
 
   return (
@@ -266,7 +184,7 @@ export function TaskHubScreen({navigation}: Props) {
               color={colors.primary}
               fill={colors.primary}
             />
-            <Text style={styles.xpText}>1,450 XP</Text>
+            <Text style={styles.xpText}>{xp.toLocaleString()} XP</Text>
           </View>
         </View>
 
@@ -302,14 +220,35 @@ export function TaskHubScreen({navigation}: Props) {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.taskList}>
-        {tasks.map(task => {
-          const hasProgress = task.progress > 0;
-          const progressPercentage: `${number}%` =
-            `${Math.min(task.progress / task.goal, 1) * 100}%`;
+        {loading ? (
+          <View style={styles.stateContainer}>
+            <ActivityIndicator size="large" color={colors.primaryButton} />
+            <Text style={styles.stateText}>Đang tải nhiệm vụ...</Text>
+          </View>
+        ) : null}
+
+        {!loading && error ? (
+          <View style={styles.stateContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+            <Pressable style={styles.retryButton} onPress={loadTasks}>
+              <Text style={styles.retryButtonText}>Thử lại</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {!loading && !error && tasks.length === 0 ? (
+          <View style={styles.stateContainer}>
+            <Text style={styles.stateText}>
+              Chưa có nhiệm vụ trong nhóm này.
+            </Text>
+          </View>
+        ) : null}
+
+        {!loading && !error ? tasks.map(task => {
           const difficulty = DIFFICULTY_COLORS[task.difficulty];
 
           return (
-            <View key={task.id} style={styles.taskCard}>
+            <View key={task._id} style={styles.taskCard}>
               <View style={styles.taskTopRow}>
                 <View style={styles.emojiContainer}>
                   <Text style={styles.emoji}>{task.emoji}</Text>
@@ -318,7 +257,7 @@ export function TaskHubScreen({navigation}: Props) {
                 <View style={styles.taskMain}>
                   <Text style={styles.taskTitle}>{task.title}</Text>
                   <Text style={styles.taskSubtitle}>
-                    {task.subtitle}
+                    {task.description}
                   </Text>
 
                   <View style={styles.chipRow}>
@@ -332,7 +271,7 @@ export function TaskHubScreen({navigation}: Props) {
                           styles.difficultyText,
                           {color: difficulty.text},
                         ]}>
-                        {task.difficulty}
+                        {DIFFICULTY_LABELS[task.difficulty]}
                       </Text>
                     </View>
 
@@ -342,34 +281,12 @@ export function TaskHubScreen({navigation}: Props) {
                         color={colors.textSecondary}
                       />
                       <Text style={styles.timeText}>
-                        {task.time}
+                        {task.estimatedMinutes} phút
                       </Text>
                     </View>
                   </View>
                 </View>
               </View>
-
-              {hasProgress ? (
-                <View style={styles.progressSection}>
-                  <View style={styles.progressHeader}>
-                    <Text style={styles.progressLabel}>
-                      Tiến độ
-                    </Text>
-                    <Text style={styles.progressValue}>
-                      {task.progress}/{task.goal}
-                      {task.progressUnit ?? ''}
-                    </Text>
-                  </View>
-                  <View style={styles.progressTrack}>
-                    <View
-                      style={[
-                        styles.progressBar,
-                        {width: progressPercentage},
-                      ]}
-                    />
-                  </View>
-                </View>
-              ) : null}
 
               <View style={styles.rewardRow}>
                 <View style={styles.rewards}>
@@ -379,18 +296,18 @@ export function TaskHubScreen({navigation}: Props) {
                       color={colors.primary}
                     />
                     <Text style={styles.xpRewardText}>
-                      +{task.xp} XP
+                      +{task.rewardXp} XP
                     </Text>
                   </View>
 
-                  {task.lp > 0 ? (
+                  {task.rewardLp > 0 ? (
                     <View style={styles.lpReward}>
                       <Leaf
                         size={12}
                         color={colors.primaryButton}
                       />
                       <Text style={styles.lpRewardText}>
-                        +{task.lp} LP
+                        +{task.rewardLp} LP
                       </Text>
                     </View>
                   ) : null}
@@ -404,13 +321,13 @@ export function TaskHubScreen({navigation}: Props) {
                   ]}
                   onPress={() => handleTask(task)}>
                   <Text style={styles.taskButtonText}>
-                    {hasProgress ? 'Tiếp tục' : 'Bắt đầu'}
+                    Xem chi tiết
                   </Text>
                 </Pressable>
               </View>
             </View>
           );
-        })}
+        }) : null}
       </ScrollView>
 
       <BottomNavigation
@@ -500,6 +417,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 16,
     rowGap: 14,
+  },
+  stateContainer: {
+    minHeight: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
+    rowGap: 12,
+  },
+  stateText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  errorText: {
+    color: colors.error,
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+  },
+  retryButton: {
+    height: 38,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 19,
+    backgroundColor: colors.primaryButton,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
   taskCard: {
     padding: 18,

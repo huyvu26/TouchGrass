@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useCallback, useState} from 'react';
 import {
   Pressable,
   ScrollView,
@@ -20,11 +20,14 @@ import {
   User,
 } from 'lucide-react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {useFocusEffect} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Svg, {Circle, Path, Rect} from 'react-native-svg';
 
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
+import {getMyProfile} from '../../services/userService';
+import type {AuthUser} from '../../types/auth';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
@@ -192,12 +195,45 @@ function BottomNavigation({
 }
 
 export function HomeScreen({navigation}: Props) {
-  const xp = 1450;
-  const maxXp = 2000;
+  const [profile, setProfile] = useState<AuthUser | null>(null);
+  const xp = profile?.xp ?? 0;
+  const maxXp = Math.max(1000, Math.ceil((xp + 1) / 1000) * 1000);
   const xpPercentage: `${number}%` =
-    `${(xp / maxXp) * 100}%`;
+    `${Math.min((xp / maxXp) * 100, 100)}%`;
+  const xpRemaining = Math.max(maxXp - xp, 0);
   const radius = 70;
   const circumference = 2 * Math.PI * radius;
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+
+      async function loadProfile() {
+        try {
+          const user = await getMyProfile();
+
+          if (active) {
+            setProfile(user);
+          }
+        } catch {
+          // Giữ trạng thái mặc định; Profile sẽ hiển thị lỗi chi tiết.
+        }
+      }
+
+      loadProfile();
+
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
+
+  const initials = profile?.fullName
+    .trim()
+    .split(/\s+/)
+    .slice(-2)
+    .map(part => part.charAt(0).toUpperCase())
+    .join('') ?? '?';
 
   return (
     <SafeAreaView
@@ -209,11 +245,13 @@ export function HomeScreen({navigation}: Props) {
         <View style={styles.header}>
           <View style={styles.userRow}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>HĐ</Text>
+              <Text style={styles.avatarText}>{initials}</Text>
             </View>
             <View>
               <Text style={styles.greeting}>Chào buổi sáng 🌿</Text>
-              <Text style={styles.userName}>Hải Đăng</Text>
+              <Text style={styles.userName}>
+                {profile?.fullName ?? 'Đang tải...'}
+              </Text>
             </View>
           </View>
 
@@ -259,7 +297,7 @@ export function HomeScreen({navigation}: Props) {
               <Text
                 style={styles.summaryValue}
                 numberOfLines={1}>
-                Lvl 5 Explorer
+                Lvl {profile?.level ?? 1}
               </Text>
             </View>
           </View>
@@ -273,7 +311,9 @@ export function HomeScreen({navigation}: Props) {
             </View>
             <View style={styles.summaryText}>
               <Text style={styles.summaryLabel}>Leaf Points</Text>
-              <Text style={styles.summaryValue}>240 LP</Text>
+              <Text style={styles.summaryValue}>
+                {profile?.leafPoints ?? 0} LP
+              </Text>
             </View>
           </View>
         </View>
@@ -281,7 +321,9 @@ export function HomeScreen({navigation}: Props) {
         <View style={styles.xpCard}>
           <View style={styles.xpHeader}>
             <Text style={styles.cardTitle}>Tiến độ XP</Text>
-            <Text style={styles.xpValue}>1,450 / 2,000 XP</Text>
+            <Text style={styles.xpValue}>
+              {xp.toLocaleString()} / {maxXp.toLocaleString()} XP
+            </Text>
           </View>
           <View style={styles.xpTrack}>
             <View
@@ -292,7 +334,7 @@ export function HomeScreen({navigation}: Props) {
             />
           </View>
           <Text style={styles.xpCaption}>
-            Còn 550 XP để lên Lvl 6
+            Còn {xpRemaining.toLocaleString()} XP tới mốc tiếp theo
           </Text>
         </View>
 

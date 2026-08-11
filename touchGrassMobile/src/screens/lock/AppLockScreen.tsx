@@ -77,7 +77,7 @@ export function AppLockScreen({navigation}: Props) {
             ))}
             <Pressable
               style={styles.startButton}
-              onPress={() => navigation.navigate('TaskDetail')}>
+              onPress={() => navigation.navigate('TaskHub')}>
               <Text style={styles.startButtonText}>
                 Bắt đầu ngay
               </Text>
