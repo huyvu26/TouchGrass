@@ -3,6 +3,8 @@ import {getAccessToken} from '../storage/authStorage';
 import type {
   ClaimRewardResponse,
   CompleteTaskResponse,
+  GpsPoint,
+  GpsVerificationResponse,
   StartUserTaskResponse,
   UpdateUserTaskProgressResponse,
   UserTaskDetail,
@@ -113,5 +115,27 @@ export function claimUserTaskReward(
   return authorizedRequest<ClaimRewardResponse>(
     `/user-tasks/${encodeURIComponent(userTaskId)}/claim-reward`,
     {method: 'POST'},
+  );
+}
+
+export function startGpsTracking(
+  userTaskId: string,
+): Promise<GpsVerificationResponse> {
+  return authorizedRequest<GpsVerificationResponse>(
+    `/user-tasks/${encodeURIComponent(userTaskId)}/gps/start`,
+    {method: 'POST'},
+  );
+}
+
+export function finishGpsTracking(
+  userTaskId: string,
+  points: GpsPoint[],
+): Promise<GpsVerificationResponse> {
+  return authorizedRequest<GpsVerificationResponse>(
+    `/user-tasks/${encodeURIComponent(userTaskId)}/gps/finish`,
+    {
+      method: 'POST',
+      body: {points},
+    },
   );
 }

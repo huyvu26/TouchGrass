@@ -12,6 +12,37 @@ export type UserTaskStatus =
   | 'CANCELLED'
   | 'EXPIRED';
 
+export type UserTaskVerificationStatus =
+  | 'NOT_STARTED'
+  | 'IN_PROGRESS'
+  | 'PASSED'
+  | 'FAILED';
+
+export interface GpsPoint {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  timestamp: string;
+}
+
+export interface GpsVerificationResponse {
+  userTaskId: string;
+  verificationStatus: UserTaskVerificationStatus;
+  passed: boolean;
+  progress: number;
+  targetValue: number;
+  trackingStartedAt: string | null;
+  trackingEndedAt: string | null;
+  summary: {
+    distanceMeters: number;
+    durationSeconds: number;
+    averageSpeedKmh: number;
+    sampleCount: number;
+  };
+  failureReason: string | null;
+  alreadyProcessed: boolean;
+}
+
 export interface StartUserTaskResponse {
   id: string;
   userId: string;
@@ -23,6 +54,8 @@ export interface StartUserTaskResponse {
   completedAt: string | null;
   expiresAt: string | null;
   rewardGranted: boolean;
+  verificationStatus: UserTaskVerificationStatus;
+  verificationAttempts: number;
 }
 
 export interface UserTaskDefinition {
@@ -58,6 +91,16 @@ export interface UserTaskDetail {
   completedAt: string | null;
   expiresAt: string | null;
   rewardGranted: boolean;
+  verificationStatus: UserTaskVerificationStatus;
+  verificationAttempts: number;
+  verifiedAt?: string | null;
+  trackingStartedAt?: string | null;
+  trackingEndedAt?: string | null;
+  distanceMeters?: number;
+  durationSeconds?: number;
+  averageSpeedKmh?: number;
+  gpsSampleCount?: number;
+  verificationFailureReason?: string | null;
   createdAt: string;
   updatedAt: string;
 }
