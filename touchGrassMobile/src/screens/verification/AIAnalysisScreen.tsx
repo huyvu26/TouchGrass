@@ -33,7 +33,7 @@ const STEPS = [
   'Xác minh ảnh chụp ngoài trời',
 ] as const;
 
-export function AIAnalysisScreen({navigation}: Props) {
+export function AIAnalysisScreen({navigation, route}: Props) {
   const [phase, setPhase] =
     useState<AnalysisState>('loading');
 
@@ -168,7 +168,11 @@ export function AIAnalysisScreen({navigation}: Props) {
         {phase === 'success' ? (
           <Pressable
             style={styles.primaryButton}
-            onPress={() => navigation.navigate('Reward')}>
+            onPress={() =>
+              navigation.navigate('Reward', {
+                userTaskId: route.params.userTaskId,
+              })
+            }>
             <Text style={styles.primaryButtonText}>
               Tiếp tục → Nhận thưởng
             </Text>
@@ -177,7 +181,11 @@ export function AIAnalysisScreen({navigation}: Props) {
           <>
             <Pressable
               style={styles.primaryButton}
-              onPress={() => navigation.navigate('AICamera')}>
+              onPress={() =>
+                navigation.navigate('AICamera', {
+                  userTaskId: route.params.userTaskId,
+                })
+              }>
               <Text style={styles.primaryButtonText}>
                 📸 Chụp lại
               </Text>

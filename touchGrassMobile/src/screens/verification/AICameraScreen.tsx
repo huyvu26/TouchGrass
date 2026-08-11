@@ -9,7 +9,6 @@ import {
   Camera,
   ChevronLeft,
   Flashlight,
-  Image as ImageIcon,
   RotateCcw,
   Shield,
   X,
@@ -33,7 +32,7 @@ type Props = NativeStackScreenProps<
 
 type CameraState = 'preview' | 'taken' | 'denied';
 
-export function AICameraScreen({navigation}: Props) {
+export function AICameraScreen({navigation, route}: Props) {
   const [state, setState] = useState<CameraState>('preview');
   const [flash, setFlash] = useState(false);
 
@@ -133,9 +132,7 @@ export function AICameraScreen({navigation}: Props) {
 
         {state === 'preview' ? (
           <View style={styles.captureRow}>
-            <Pressable style={styles.sideControl}>
-              <ImageIcon size={22} color="#FFFFFF" />
-            </Pressable>
+            <View style={styles.sideControlPlaceholder} />
             <Pressable
               accessibilityLabel="Chụp ảnh"
               style={styles.shutterOuter}
@@ -156,7 +153,11 @@ export function AICameraScreen({navigation}: Props) {
             </Pressable>
             <Pressable
               style={styles.analyzeButton}
-              onPress={() => navigation.navigate('AIAnalysis')}>
+              onPress={() =>
+                navigation.navigate('AIAnalysis', {
+                  userTaskId: route.params.userTaskId,
+                })
+              }>
               <Camera size={17} color={colors.primary} />
               <Text style={styles.analyzeText}>Dùng ảnh này</Text>
             </Pressable>
@@ -205,6 +206,7 @@ const styles = StyleSheet.create({
   privacyText: {color: 'rgba(255,255,255,0.58)', fontSize: 11},
   captureRow: {height: 82, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around'},
   sideControl: {width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 23, backgroundColor: 'rgba(255,255,255,0.12)'},
+  sideControlPlaceholder: {width: 46, height: 46},
   shutterOuter: {width: 76, height: 76, padding: 5, borderWidth: 3, borderColor: '#FFFFFF', borderRadius: 38},
   shutterInner: {flex: 1, borderRadius: 32, backgroundColor: '#FFFFFF'},
   reviewActions: {height: 82, flexDirection: 'row', alignItems: 'center', columnGap: 12},

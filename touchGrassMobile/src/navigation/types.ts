@@ -13,11 +13,19 @@ export type AuthStackParamList = {
   TaskDetail: {
     taskId: string;
   };
-  GPSTracker: undefined;
-  AICamera: undefined;
-  AIAnalysis: undefined;
+  GPSTracker: {
+    userTaskId: string;
+  };
+  AICamera: {
+    userTaskId: string;
+  };
+  AIAnalysis: {
+    userTaskId: string;
+  };
   AppLock: undefined;
-  Reward: undefined;
+  Reward: {
+    userTaskId: string;
+  };
   Statistics: undefined;
   History: undefined;
   Badges: undefined;

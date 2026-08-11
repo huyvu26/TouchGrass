@@ -26,6 +26,7 @@ import Svg, {
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
 import {getTaskById} from '../../services/taskService';
+import {startUserTask} from '../../services/userTaskService';
 import type {
   Task,
   TaskDifficulty,
@@ -74,6 +75,7 @@ export function TaskDetailScreen({navigation, route}: Props) {
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
 
   const loadTask = useCallback(async () => {
     setLoading(true);
@@ -96,25 +98,47 @@ export function TaskDetailScreen({navigation, route}: Props) {
     loadTask();
   }, [loadTask]);
 
-  function startTask() {
-    if (!task) {
+  async function startTask() {
+    if (!task || isStarting) {
       return;
     }
 
-    if (task.verificationType === 'GPS_DISTANCE') {
-      navigation.navigate('GPSTracker');
+    const supported =
+      task.verificationType === 'GPS_DISTANCE' ||
+      task.verificationType === 'PHOTO_AI';
+
+    if (!supported) {
+      Alert.alert(
+        'Chưa hỗ trợ',
+        'Loại nhiệm vụ này chưa có màn hình thực hiện phù hợp.',
+      );
       return;
     }
 
-    if (task.verificationType === 'PHOTO_AI') {
-      navigation.navigate('AICamera');
-      return;
-    }
+    setIsStarting(true);
 
-    Alert.alert(
-      'Chưa có màn hình xác minh',
-      'Nhóm backend cần bổ sung API bắt đầu và hoàn thành nhiệm vụ cho loại này.',
-    );
+    try {
+      const result = await startUserTask(task._id);
+
+      if (task.verificationType === 'GPS_DISTANCE') {
+        navigation.navigate('GPSTracker', {
+          userTaskId: result.id,
+        });
+      } else {
+        navigation.navigate('AICamera', {
+          userTaskId: result.id,
+        });
+      }
+    } catch (startError) {
+      Alert.alert(
+        'Không thể bắt đầu nhiệm vụ',
+        startError instanceof Error
+          ? startError.message
+          : 'Vui lòng thử lại sau.',
+      );
+    } finally {
+      setIsStarting(false);
+    }
   }
 
   if (loading || error || !task) {
@@ -278,14 +302,20 @@ export function TaskDetailScreen({navigation, route}: Props) {
           </View>
 
           <Pressable
+            disabled={isStarting}
             style={({pressed}) => [
               styles.primaryButton,
+              isStarting && styles.primaryButtonDisabled,
               pressed && styles.pressed,
             ]}
             onPress={startTask}>
-            <Text style={styles.primaryButtonText}>
-              🌿 Bắt đầu nhiệm vụ
-            </Text>
+            {isStarting ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.primaryButtonText}>
+                🌿 Bắt đầu nhiệm vụ
+              </Text>
+            )}
           </Pressable>
           <Pressable
             style={styles.ghostButton}
@@ -438,6 +468,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryButton,
   },
   primaryButtonText: {color: '#FFFFFF', fontSize: 16, fontWeight: '800'},
+  primaryButtonDisabled: {opacity: 0.65},
   ghostButton: {height: 48, alignItems: 'center', justifyContent: 'center'},
   ghostButtonText: {color: colors.primaryButton, fontSize: 14, fontWeight: '700'},
   pressed: {opacity: 0.78},

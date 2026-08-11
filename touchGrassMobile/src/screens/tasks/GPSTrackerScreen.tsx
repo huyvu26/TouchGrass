@@ -24,7 +24,7 @@ type Props = NativeStackScreenProps<
   'GPSTracker'
 >;
 
-export function GPSTrackerScreen({navigation}: Props) {
+export function GPSTrackerScreen({navigation, route}: Props) {
   const [paused, setPaused] = useState(false);
   const [gpsError, setGpsError] = useState(false);
   const progress = 0.7;
@@ -163,7 +163,11 @@ export function GPSTrackerScreen({navigation}: Props) {
         </Pressable>
         <Pressable
           style={styles.outlineButton}
-          onPress={() => navigation.navigate('Reward')}>
+          onPress={() =>
+            navigation.navigate('Reward', {
+              userTaskId: route.params.userTaskId,
+            })
+          }>
           <Square size={15} color={colors.primaryButton} />
           <Text style={styles.outlineButtonText}>
             Kết thúc nhiệm vụ
