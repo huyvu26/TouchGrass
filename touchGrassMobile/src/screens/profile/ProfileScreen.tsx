@@ -141,13 +141,12 @@ export function ProfileScreen({ navigation }: Props) {
           ))}
         </View>
 
-        <Text style={styles.sectionTitle}>Thành tựu nổi bật</Text>
+        <Text style={styles.sectionTitle}>Tiến độ nổi bật</Text>
         <View style={styles.badgePreview}>
           {[
-            ['🥾', 'Người đi bộ'],
-            ['🧭', 'Khám phá'],
-            ['🌱', 'Chạm cỏ'],
-            ['🦅', 'Ranger'],
+            ['✅', `${summary?.completedTasks ?? 0} nhiệm vụ`],
+            ['🥾', `${summary?.totalWalkingKilometers ?? 0} km`],
+            ['📵', `${summary?.totalOfflineHours ?? 0} giờ`],
           ].map(([emoji, label]) => (
             <View key={label} style={styles.previewItem}>
               <View style={styles.previewIcon}>

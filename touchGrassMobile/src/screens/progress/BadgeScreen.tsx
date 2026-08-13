@@ -1,5 +1,6 @@
-import React, {useState} from 'react';
+import React, {useCallback, useMemo, useState} from 'react';
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
@@ -9,127 +10,134 @@ import {
 } from 'react-native';
 import {Lock, Star, X} from 'lucide-react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {useFocusEffect} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
 import {ScreenHeader} from '../../components/ScreenHeader';
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
+import {getTaskSummary} from '../../services/insightsService';
+import {getMyProfile} from '../../services/userService';
+import type {AuthUser} from '../../types/auth';
+import type {ProfileSummaryResponse} from '../../types/insights';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Badges'>;
 
-const BADGES = [
-  {id: 1, emoji: '🥾', name: 'Người đi bộ', description: 'Đi bộ tổng cộng 50km', progress: '50/50 km', earned: true, locked: false},
-  {id: 2, emoji: '🧭', name: 'Người khám phá', description: 'Hoàn thành 10 nhiệm vụ', progress: '10/10 nhiệm vụ', earned: true, locked: false},
-  {id: 3, emoji: '🌱', name: 'Chạm vào cỏ', description: 'Ra ngoài 7 ngày liên tiếp', progress: '7/7 ngày', earned: true, locked: false},
-  {id: 4, emoji: '🦅', name: 'Ranger', description: 'Đi bộ 100km tổng cộng', progress: '100/100 km', earned: true, locked: false},
-  {id: 5, emoji: '📸', name: 'Nhiếp ảnh gia', description: 'Chụp 50 loại cây', progress: '42/50 loại cây', earned: false, locked: false},
-  {id: 6, emoji: '🏔️', name: 'Leo núi', description: 'Đi bộ 200km tổng cộng', progress: '124.5/200 km', earned: false, locked: true},
-  {id: 7, emoji: '🌟', name: 'Siêu sao', description: 'Đạt Level 10', progress: 'Lvl 5/10', earned: false, locked: true},
-  {id: 8, emoji: '🌏', name: 'Nhà tự nhiên', description: 'Hoàn thành 100 nhiệm vụ', progress: '43/100 nhiệm vụ', earned: false, locked: true},
-] as const;
-
 export function BadgeScreen({navigation}: Props) {
+  const [profile, setProfile] = useState<AuthUser | null>(null);
+  const [summary, setSummary] = useState<ProfileSummaryResponse | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const selected = BADGES.find(item => item.id === selectedId);
+  const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      async function loadData() {
+        setLoading(true);
+        try {
+          const [user, taskSummary] = await Promise.all([
+            getMyProfile(),
+            getTaskSummary(),
+          ]);
+          if (active) {
+            setProfile(user);
+            setSummary(taskSummary);
+          }
+        } finally {
+          if (active) {
+            setLoading(false);
+          }
+        }
+      }
+      loadData();
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
+
+  const badges = useMemo(() => {
+    const tasks = summary?.completedTasks ?? 0;
+    const kilometers = summary?.totalWalkingKilometers ?? 0;
+    const offlineMinutes = Math.floor((summary?.totalOfflineSeconds ?? 0) / 60);
+    const level = profile?.level ?? 1;
+    const xp = profile?.xp ?? 0;
+    return [
+      {id: 1, emoji: '🌱', name: 'Khởi đầu xanh', description: 'Hoàn thành nhiệm vụ đầu tiên', current: tasks, target: 1, unit: 'nhiệm vụ'},
+      {id: 2, emoji: '🧭', name: 'Người khám phá', description: 'Hoàn thành 10 nhiệm vụ', current: tasks, target: 10, unit: 'nhiệm vụ'},
+      {id: 3, emoji: '🏆', name: 'Bền bỉ', description: 'Hoàn thành 25 nhiệm vụ', current: tasks, target: 25, unit: 'nhiệm vụ'},
+      {id: 4, emoji: '🥾', name: 'Bước chân đầu tiên', description: 'Đi bộ tổng cộng 1 km', current: kilometers, target: 1, unit: 'km'},
+      {id: 5, emoji: '🌳', name: 'Bạn của thiên nhiên', description: 'Đi bộ tổng cộng 5 km', current: kilometers, target: 5, unit: 'km'},
+      {id: 6, emoji: '📵', name: 'Rời màn hình', description: 'Tích lũy 30 phút không màn hình', current: offlineMinutes, target: 30, unit: 'phút'},
+      {id: 7, emoji: '⭐', name: 'Tiến bộ', description: 'Đạt cấp độ 5', current: level, target: 5, unit: 'cấp'},
+      {id: 8, emoji: '⚡', name: 'Tích lũy kinh nghiệm', description: 'Đạt 1.000 XP', current: xp, target: 1000, unit: 'XP'},
+    ].map(item => ({...item, earned: item.current >= item.target}));
+  }, [profile, summary]);
+
+  const selected = badges.find(item => item.id === selectedId);
+  const earnedCount = badges.filter(item => item.earned).length;
+  const levelProgress = Math.min(((profile?.xp ?? 0) % 1000) / 10, 100);
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <ScreenHeader
-        title="Bộ sưu tập huy hiệu"
-        onBack={() => navigation.goBack()}
-      />
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}>
+      <ScreenHeader title="Bộ sưu tập huy hiệu" onBack={() => navigation.goBack()} />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.levelCard}>
           <View style={styles.starBox}>
-            <Star
-              size={26}
-              color={colors.primary}
-              fill={colors.primary}
-            />
+            <Star size={26} color={colors.primary} fill={colors.primary} />
           </View>
           <View style={styles.levelContent}>
-            <Text style={styles.levelTitle}>Lvl 5 Explorer</Text>
+            <Text style={styles.levelTitle}>Level {profile?.level ?? 1}</Text>
             <View style={styles.levelTrack}>
-              <View style={styles.levelProgress} />
+              <View style={[styles.levelProgress, {width: `${levelProgress}%`}]} />
             </View>
-            <Text style={styles.levelText}>1,450 / 2,000 XP</Text>
+            <Text style={styles.levelText}>{profile?.xp ?? 0} XP tích lũy</Text>
           </View>
-          <Text style={styles.badgeCount}>4/8</Text>
+          <Text style={styles.badgeCount}>{earnedCount}/{badges.length}</Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Huy hiệu của bạn</Text>
+        {loading ? <ActivityIndicator color={colors.primaryButton} /> : null}
+        <Text style={styles.sectionTitle}>Huy hiệu từ dữ liệu hoạt động</Text>
         <View style={styles.grid}>
-          {BADGES.map(badge => (
+          {badges.map(badge => (
             <Pressable
               key={badge.id}
-              style={[
-                styles.badgeCard,
-                badge.locked && styles.badgeLocked,
-              ]}
+              style={[styles.badgeCard, !badge.earned && styles.badgeLocked]}
               onPress={() => setSelectedId(badge.id)}>
-              <View
-                style={[
-                  styles.badgeIcon,
-                  badge.earned && styles.badgeEarned,
-                ]}>
-                <Text style={styles.badgeEmoji}>
-                  {badge.emoji}
-                </Text>
-                {badge.locked ? (
+              <View style={[styles.badgeIcon, badge.earned && styles.badgeEarned]}>
+                <Text style={styles.badgeEmoji}>{badge.emoji}</Text>
+                {!badge.earned ? (
                   <View style={styles.lockBadge}>
                     <Lock size={11} color="#FFFFFF" />
                   </View>
                 ) : null}
               </View>
-              <Text style={styles.badgeName} numberOfLines={1}>
-                {badge.name}
-              </Text>
-              <Text style={styles.badgeDescription} numberOfLines={2}>
-                {badge.description}
-              </Text>
-              <Text
-                style={[
-                  styles.badgeProgress,
-                  badge.earned && styles.badgeProgressDone,
-                ]}>
-                {badge.progress}
+              <Text style={styles.badgeName} numberOfLines={1}>{badge.name}</Text>
+              <Text style={styles.badgeDescription} numberOfLines={2}>{badge.description}</Text>
+              <Text style={[styles.badgeProgress, badge.earned && styles.badgeProgressDone]}>
+                {Math.min(Number(badge.current.toFixed(2)), badge.target)}/{badge.target} {badge.unit}
               </Text>
             </Pressable>
           ))}
         </View>
       </ScrollView>
 
-      <Modal
-        visible={Boolean(selected)}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSelectedId(null)}>
+      <Modal visible={Boolean(selected)} transparent animationType="fade" onRequestClose={() => setSelectedId(null)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Pressable
-              style={styles.modalClose}
-              onPress={() => setSelectedId(null)}>
+            <Pressable style={styles.modalClose} onPress={() => setSelectedId(null)}>
               <X size={20} color={colors.textSecondary} />
             </Pressable>
             <Text style={styles.modalEmoji}>{selected?.emoji}</Text>
             <Text style={styles.modalTitle}>{selected?.name}</Text>
-            <Text style={styles.modalDescription}>
-              {selected?.description}
-            </Text>
+            <Text style={styles.modalDescription}>{selected?.description}</Text>
             <View style={styles.modalProgress}>
               <Text style={styles.modalProgressText}>
-                {selected?.progress}
+                {selected ? `${Math.min(Number(selected.current.toFixed(2)), selected.target)}/${selected.target} ${selected.unit}` : ''}
               </Text>
             </View>
             <Text style={styles.modalStatus}>
-              {selected?.earned
-                ? 'Đã mở khóa 🎉'
-                : selected?.locked
-                  ? 'Tiếp tục cố gắng để mở khóa'
-                  : 'Sắp đạt được rồi!'}
+              {selected?.earned ? 'Đã mở khóa 🎉' : 'Tiếp tục hoạt động để mở khóa'}
             </Text>
           </View>
         </View>
@@ -146,7 +154,7 @@ const styles = StyleSheet.create({
   levelContent: {flex: 1},
   levelTitle: {color: '#FFFFFF', fontSize: 16, fontWeight: '800'},
   levelTrack: {height: 8, marginTop: 7, overflow: 'hidden', borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.15)'},
-  levelProgress: {width: '72.5%', height: '100%', borderRadius: 4, backgroundColor: colors.lime},
+  levelProgress: {height: '100%', borderRadius: 4, backgroundColor: colors.lime},
   levelText: {marginTop: 4, color: 'rgba(255,255,255,0.58)', fontSize: 10},
   badgeCount: {color: colors.lime, fontSize: 14, fontWeight: '800'},
   sectionTitle: {marginBottom: 12, color: colors.text, fontSize: 15, fontWeight: '700'},

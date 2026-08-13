@@ -5,7 +5,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import {AlertCircle, Leaf, Lock} from 'lucide-react-native';
+import {AlertCircle, Lock} from 'lucide-react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
@@ -51,8 +51,8 @@ export function AppLockScreen({navigation}: Props) {
 
         <Text style={styles.title}>Bạn đã hết thời gian!</Text>
         <Text style={styles.subtitle}>
-          Hãy ra ngoài chạm vào cỏ.{'\n'}
-          Thiên nhiên đang chờ bạn 🌿
+          Đây là bản xem trước giao diện khóa ứng dụng.{'\n'}
+          Chưa có dữ liệu UsageStats hoặc Accessibility thật.
         </Text>
 
         <Pressable
@@ -69,9 +69,9 @@ export function AppLockScreen({navigation}: Props) {
               Chi tiết nhiệm vụ
             </Text>
             {[
-              ['📍 Khoảng cách', '500 m'],
-              ['⚡ Phần thưởng', '+25 XP · +8 LP'],
-              ['🔓 Mở khóa', '+15 phút TikTok'],
+              ['📍 Nhiệm vụ', 'Chọn từ Task Hub'],
+              ['⚡ Phần thưởng', 'Backend quyết định'],
+              ['🔓 Mở khóa', 'Chưa hỗ trợ App Control'],
             ].map(([label, value]) => (
               <View key={label} style={styles.detailRow}>
                 <Text style={styles.detailLabel}>{label}</Text>
@@ -96,24 +96,18 @@ export function AppLockScreen({navigation}: Props) {
                 Dùng thêm có phí
               </Text>
               <Text style={styles.penaltyDescription}>
-                Trừ 50 XP để dùng thêm 5 phút. Mỗi lần vượt giới
-                hạn sẽ trừ thêm điểm.
+                Chức năng dùng điểm để mở khóa chưa được backend và Android
+                native hỗ trợ trong bản hiện tại.
               </Text>
             </View>
           </View>
           <Pressable style={styles.penaltyButton}>
             <Text style={styles.penaltyButtonText}>
-              Dùng thêm (−50 XP)
+              Chưa khả dụng
             </Text>
           </Pressable>
         </View>
 
-        <View style={styles.savedRow}>
-          <Leaf size={16} color={colors.lime} />
-          <Text style={styles.savedText}>
-            Bạn đã tiết kiệm 38 giờ màn hình tháng này! 🎉
-          </Text>
-        </View>
       </View>
     </SafeAreaView>
   );

@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   Modal,
   Pressable,
@@ -16,6 +16,7 @@ import {ToggleSwitch} from '../../components/ToggleSwitch';
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
 import {useAuth} from '../../auth/AuthContext';
+import {loadSettings, saveSettings} from '../../storage/settingsStorage';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Settings'>;
 
@@ -91,11 +92,24 @@ export function SettingsScreen({navigation}: Props) {
   });
   const [showLogout, setShowLogout] = useState(false);
 
+  useEffect(() => {
+    let active = true;
+    loadSettings<Record<ToggleKey, boolean>>().then(saved => {
+      if (active) {
+        setToggles(current => ({...current, ...saved}));
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   function toggle(key: ToggleKey) {
-    setToggles(current => ({
-      ...current,
-      [key]: !current[key],
-    }));
+    setToggles(current => {
+      const next = {...current, [key]: !current[key]};
+      saveSettings(next).catch(() => undefined);
+      return next;
+    });
   }
 
   const common = {toggles, onToggle: toggle};
@@ -116,6 +130,12 @@ export function SettingsScreen({navigation}: Props) {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}>
+        <View style={styles.prototypeNote}>
+          <Text style={styles.prototypeNoteText}>
+            Các tùy chọn bên dưới được lưu trên thiết bị. App Control vẫn là
+            prototype và chưa kích hoạt khóa ứng dụng thật.
+          </Text>
+        </View>
         <Text style={styles.sectionLabel}>
           KIỂM SOÁT ỨNG DỤNG
         </Text>
@@ -263,6 +283,8 @@ export function SettingsScreen({navigation}: Props) {
 const styles = StyleSheet.create({
   screen: {flex: 1, backgroundColor: colors.background},
   content: {paddingHorizontal: 20, paddingBottom: 28},
+  prototypeNote: {marginBottom: 16, padding: 12, borderRadius: 14, backgroundColor: colors.surfaceSoft},
+  prototypeNoteText: {color: colors.textSecondary, fontSize: 11, lineHeight: 17},
   sectionLabel: {marginBottom: 8, marginLeft: 4, color: colors.textSecondary, fontSize: 11, fontWeight: '700', letterSpacing: 0.8},
   section: {marginBottom: 19, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, borderRadius: 20, backgroundColor: colors.surface},
   row: {minHeight: 58, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', columnGap: 12},

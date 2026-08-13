@@ -499,24 +499,12 @@ export function GPSTrackerScreen({navigation, route}: Props) {
         <View style={styles.statsGrid}>
           {[
             [
-              verification ? 'Tiến độ backend' : 'Mục tiêu',
-              verification
-                ? `${Math.round(verification.progress)} / ${Math.round(verification.targetValue)} m`
-                : targetLabel,
+              'Quãng đường',
+              backendSummary
+                ? `${Math.round(backendSummary.distanceMeters)} / ${Math.round(targetValue)} m`
+                : 'Chờ xác minh',
             ],
             ['Thời gian', formatDuration(elapsedSeconds)],
-            [
-              'Quãng đường',
-              backendSummary?.distanceMeters
-                ? `${backendSummary.distanceMeters.toFixed(0)} m`
-                : 'Backend sẽ tính',
-            ],
-            [
-              'Tốc độ',
-              backendSummary?.averageSpeedKmh
-                ? `${backendSummary.averageSpeedKmh.toFixed(1)} km/h`
-                : 'Backend sẽ tính',
-            ],
           ].map(([label, value], index) => (
             <View key={label} style={styles.stat}>
               <Text style={styles.statLabel}>{label}</Text>

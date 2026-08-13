@@ -170,10 +170,6 @@ export function AppManagementScreen({navigation}: Props) {
     [filter, search, toggles],
   );
 
-  const limitedCount = MANAGED_APPS.filter(
-    app => toggles[app.name],
-  ).length;
-
   function toggleApp(name: string) {
     setToggles(current => ({
       ...current,
@@ -264,7 +260,7 @@ export function AppManagementScreen({navigation}: Props) {
       <View style={styles.summary}>
         <Lock size={15} color={colors.primaryButton} />
         <Text style={styles.summaryText}>
-          {limitedCount} ứng dụng đang được giới hạn
+          Dữ liệu minh họa, chưa đọc ứng dụng từ thiết bị
         </Text>
       </View>
 
@@ -293,7 +289,7 @@ export function AppManagementScreen({navigation}: Props) {
               <View style={styles.appInfo}>
                 <Text style={styles.appName}>{app.name}</Text>
                 <Text style={styles.appMeta}>
-                  {app.category} · {app.limit}
+                  {app.category} · Thiết lập mẫu
                 </Text>
               </View>
             </Pressable>
