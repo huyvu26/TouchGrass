@@ -36,6 +36,9 @@ export function AppLockScreen({navigation}: Props) {
       <View style={styles.shade} />
 
       <View style={styles.content}>
+        <View style={styles.prototypeBadge}>
+          <Text style={styles.prototypeText}>PROTOTYPE · KHÔNG KHÓA APP THẬT</Text>
+        </View>
         <View style={styles.illustration}>
           <View style={styles.treeTopLarge} />
           <View style={styles.treeTopMedium} />
@@ -136,6 +139,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(11,28,8,0.88)',
   },
   content: {flex: 1, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center'},
+  prototypeBadge: {marginBottom: 12, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: 'rgba(176,242,103,0.4)', borderRadius: 14},
+  prototypeText: {color: colors.lime, fontSize: 9, fontWeight: '800', letterSpacing: 0.5},
   illustration: {width: 150, height: 150, marginBottom: 20, position: 'relative', alignItems: 'center', justifyContent: 'flex-end', borderRadius: 75, backgroundColor: 'rgba(176,242,103,0.08)'},
   treeTopLarge: {position: 'absolute', bottom: 28, width: 72, height: 88, borderRadius: 40, backgroundColor: '#2D5A27'},
   treeTopMedium: {position: 'absolute', bottom: 52, width: 56, height: 70, borderRadius: 32, backgroundColor: '#3A7033'},

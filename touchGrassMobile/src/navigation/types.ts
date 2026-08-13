@@ -21,6 +21,9 @@ export type AuthStackParamList = {
   ScreenTimer: {
     userTaskId: string;
   };
+  ManualCheckin: {
+    userTaskId: string;
+  };
   AICamera: {
     userTaskId: string;
   };

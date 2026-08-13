@@ -7,6 +7,7 @@ import React, {
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   PermissionsAndroid,
   Platform,
   Pressable,
@@ -58,26 +59,51 @@ const MAX_GPS_POINTS = 500;
 
 Geolocation.setRNConfiguration({
   skipPermissionRequests: true,
-  locationProvider: 'playServices',
+  locationProvider: 'auto',
 });
 
-async function requestLocationPermission(): Promise<boolean> {
+type PermissionResult = 'granted' | 'denied' | 'blocked';
+
+async function requestLocationPermission(): Promise<PermissionResult> {
   if (Platform.OS !== 'android') {
-    return true;
+    return 'granted';
   }
 
-  const result = await PermissionsAndroid.request(
+  const results = await PermissionsAndroid.requestMultiple([
+    PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
     PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-    {
-      title: 'Cho phép truy cập vị trí',
-      message:
-        'Touch Grass cần vị trí trong lúc bạn thực hiện nhiệm vụ đi bộ.',
-      buttonPositive: 'Cho phép',
-      buttonNegative: 'Từ chối',
-    },
-  );
+  ]);
+  const fine = results[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION];
 
-  return result === PermissionsAndroid.RESULTS.GRANTED;
+  if (fine === PermissionsAndroid.RESULTS.GRANTED) {
+    return 'granted';
+  }
+  if (fine === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+    return 'blocked';
+  }
+
+  if (fine === PermissionsAndroid.RESULTS.DENIED) {
+    Alert.alert(
+      'Cần quyền vị trí',
+      'Touch Grass cần vị trí chính xác trong lúc bạn thực hiện nhiệm vụ đi bộ.',
+    );
+  }
+
+  return 'denied';
+}
+
+function ensureLocationServicesEnabled(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    Geolocation.getCurrentPosition(
+      () => resolve(),
+      error => reject(error),
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 10000,
+      },
+    );
+  });
 }
 
 function formatDuration(totalSeconds: number): string {
@@ -111,6 +137,9 @@ export function GPSTrackerScreen({navigation, route}: Props) {
   );
   const [verification, setVerification] =
     useState<GpsVerificationResponse | null>(null);
+  const [settingsTarget, setSettingsTarget] = useState<
+    'permission' | 'location' | null
+  >(null);
 
   const pointsRef = useRef<GpsPoint[]>([]);
   const watchIdRef = useRef<number | null>(null);
@@ -188,16 +217,31 @@ export function GPSTrackerScreen({navigation, route}: Props) {
     setPhase('initializing');
     setFailureMessage(null);
     setVerification(null);
+    setSettingsTarget(null);
     pointsRef.current = [];
     setPointsCount(0);
     setLatestPoint(null);
 
     try {
-      const permissionGranted = await requestLocationPermission();
+      const permissionResult = await requestLocationPermission();
 
-      if (!permissionGranted) {
+      if (permissionResult !== 'granted') {
+        if (permissionResult === 'blocked') {
+          setSettingsTarget('permission');
+        }
         throw new Error(
-          'Bạn cần cấp quyền vị trí chính xác để làm nhiệm vụ GPS.',
+          permissionResult === 'blocked'
+            ? 'Quyền vị trí đã bị từ chối vĩnh viễn. Hãy mở Cài đặt và cho phép Vị trí chính xác.'
+            : 'Bạn cần cấp quyền vị trí chính xác để làm nhiệm vụ GPS.',
+        );
+      }
+
+      try {
+        await ensureLocationServicesEnabled();
+      } catch {
+        setSettingsTarget('location');
+        throw new Error(
+          'Không lấy được vị trí. Hãy bật Dịch vụ vị trí/GPS rồi thử lại.',
         );
       }
 
@@ -233,6 +277,22 @@ export function GPSTrackerScreen({navigation, route}: Props) {
       setPhase('failed');
     }
   }, [route.params.userTaskId, startLocationWatch]);
+
+  async function openLocationSettings() {
+    if (settingsTarget === 'permission') {
+      await Linking.openSettings();
+      return;
+    }
+
+    if (Platform.OS === 'android') {
+      try {
+        await Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS');
+        return;
+      } catch {
+        await Linking.openSettings();
+      }
+    }
+  }
 
   useEffect(() => {
     mountedRef.current = true;
@@ -438,7 +498,12 @@ export function GPSTrackerScreen({navigation, route}: Props) {
 
         <View style={styles.statsGrid}>
           {[
-            ['Mục tiêu', targetLabel],
+            [
+              verification ? 'Tiến độ backend' : 'Mục tiêu',
+              verification
+                ? `${Math.round(verification.progress)} / ${Math.round(verification.targetValue)} m`
+                : targetLabel,
+            ],
             ['Thời gian', formatDuration(elapsedSeconds)],
             [
               'Quãng đường',
@@ -470,7 +535,14 @@ export function GPSTrackerScreen({navigation, route}: Props) {
       {failureMessage ? (
         <View style={styles.failureCard}>
           <AlertCircle size={18} color={colors.error} />
-          <Text style={styles.failureText}>{failureMessage}</Text>
+          <View style={styles.failureContent}>
+            <Text style={styles.failureText}>{failureMessage}</Text>
+            {settingsTarget ? (
+              <Pressable onPress={openLocationSettings}>
+                <Text style={styles.settingsLink}>Mở Cài đặt</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
       ) : null}
 
@@ -611,6 +683,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.errorBackground,
   },
   failureText: {flex: 1, color: colors.error, fontSize: 12, lineHeight: 18},
+  failureContent: {flex: 1, rowGap: 6},
+  settingsLink: {color: colors.primaryButton, fontSize: 12, fontWeight: '800'},
   actions: {marginTop: 'auto', padding: 16, rowGap: 10},
   primaryButton: {height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8, borderRadius: 26, backgroundColor: colors.primaryButton},
   primaryButtonText: {color: '#FFFFFF', fontSize: 15, fontWeight: '800'},

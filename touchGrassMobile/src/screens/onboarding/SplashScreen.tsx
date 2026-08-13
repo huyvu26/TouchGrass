@@ -1,6 +1,8 @@
-import React, {useEffect, useRef} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
+  ActivityIndicator,
   Animated,
+  Pressable,
   StyleSheet,
   Text,
   View,
@@ -11,6 +13,14 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
+import {useAuth} from '../../auth/AuthContext';
+import {ApiError} from '../../services/apiClient';
+import {getMyProfile} from '../../services/userService';
+import {getUserTasks} from '../../services/userTaskService';
+import {
+  getAccessToken,
+  isOnboardingComplete,
+} from '../../storage/authStorage';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
@@ -18,8 +28,66 @@ type Props = NativeStackScreenProps<
 >;
 
 export function SplashScreen({navigation}: Props) {
+  const {setUser} = useAuth();
+  const [restoring, setRestoring] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.9)).current;
+
+  const restoreSession = useCallback(async () => {
+    setRestoring(true);
+    setError(null);
+
+    try {
+      const token = await getAccessToken();
+      if (!token) {
+        const completed = await isOnboardingComplete();
+        navigation.reset({
+          index: 0,
+          routes: [{name: completed ? 'Login' : 'Onboarding'}],
+        });
+        return;
+      }
+
+      const profile = await getMyProfile();
+      setUser(profile);
+      const userTasks = await getUserTasks(1, 20);
+      const activeManualCheckin = userTasks.items.find(
+        item =>
+          item.status === 'IN_PROGRESS' &&
+          item.verificationStatus === 'IN_PROGRESS' &&
+          item.task.verificationType === 'MANUAL_CHECKIN',
+      );
+
+      if (activeManualCheckin) {
+        navigation.reset({
+          index: 1,
+          routes: [
+            {name: 'Home'},
+            {
+              name: 'ManualCheckin',
+              params: {userTaskId: activeManualCheckin._id},
+            },
+          ],
+        });
+      } else {
+        navigation.reset({index: 0, routes: [{name: 'Home'}]});
+      }
+    } catch (restoreError) {
+      if (restoreError instanceof ApiError && restoreError.status === 401) {
+        setUser(null);
+        navigation.reset({index: 0, routes: [{name: 'Login'}]});
+        return;
+      }
+
+      setError(
+        restoreError instanceof Error
+          ? restoreError.message
+          : 'Không thể khôi phục phiên đăng nhập.',
+      );
+      setRestoring(false);
+    }
+  }, [navigation, setUser]);
 
   useEffect(() => {
     Animated.parallel([
@@ -36,12 +104,8 @@ export function SplashScreen({navigation}: Props) {
       }),
     ]).start();
 
-    const timer = setTimeout(() => {
-      navigation.replace('Onboarding');
-    }, 1800);
-
-    return () => clearTimeout(timer);
-  }, [navigation, opacity, scale]);
+    restoreSession();
+  }, [opacity, restoreSession, scale]);
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -83,9 +147,16 @@ export function SplashScreen({navigation}: Props) {
       </Animated.View>
 
       <View style={styles.pagination}>
-        <View style={styles.activeDot} />
-        <View style={styles.dot} />
-        <View style={styles.dot} />
+        {restoring ? (
+          <ActivityIndicator color={colors.primaryButton} />
+        ) : error ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{error}</Text>
+            <Pressable style={styles.retryButton} onPress={restoreSession}>
+              <Text style={styles.retryText}>Thử lại</Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -180,6 +251,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     columnGap: 6,
   },
+  errorBox: {paddingHorizontal: 24, alignItems: 'center', rowGap: 10},
+  errorText: {color: colors.error, fontSize: 12, textAlign: 'center'},
+  retryButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: colors.primaryButton,
+  },
+  retryText: {color: '#FFFFFF', fontSize: 13, fontWeight: '700'},
   activeDot: {
     width: 24,
     height: 8,

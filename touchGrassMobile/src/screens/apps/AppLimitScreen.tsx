@@ -193,12 +193,18 @@ export function AppLimitScreen({navigation, route}: Props) {
         </View>
 
         <View style={styles.content}>
+          <View style={styles.prototypeBanner}>
+            <Text style={styles.prototypeText}>
+              PROTOTYPE · Thiết lập này chỉ minh họa giao diện và chưa khóa ứng
+              dụng thật trên Android.
+            </Text>
+          </View>
           <View style={styles.identityCard}>
             <AppIdentityIcon name={appName} />
             <View style={styles.identityContent}>
               <Text style={styles.appName}>{appName}</Text>
               <Text style={styles.appPackage}>
-                Giải trí · com.example.{appName.toLowerCase()}
+                Ứng dụng minh họa · chưa đọc package từ thiết bị
               </Text>
             </View>
             <ToggleSwitch
@@ -458,6 +464,8 @@ export function AppLimitScreen({navigation, route}: Props) {
 }
 
 const styles = StyleSheet.create({
+  prototypeBanner: {marginBottom: 14, padding: 11, borderRadius: 12, backgroundColor: colors.surfaceSoft},
+  prototypeText: {color: colors.textSecondary, fontSize: 10, lineHeight: 15, textAlign: 'center'},
   screen: {
     flex: 1,
     backgroundColor: colors.background,

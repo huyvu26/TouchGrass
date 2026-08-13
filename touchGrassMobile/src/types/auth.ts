@@ -27,3 +27,10 @@ export interface AuthResponse {
   accessToken: string;
   user: AuthUser;
 }
+
+export interface UpdateProfileRequest {
+  fullName?: string;
+  avatarUrl?: string | null;
+  dateOfBirth?: string | null;
+  goals?: string[];
+}

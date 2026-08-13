@@ -19,6 +19,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
+import {markOnboardingComplete} from '../../storage/authStorage';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
@@ -31,16 +32,16 @@ const PERMISSIONS = [
     icon: Shield,
     label: 'Hỗ trợ Accessibility',
     description:
-      'Cho phép ứng dụng theo dõi và chặn app khi hết thời gian',
-    required: true,
+      'Prototype: chưa có Accessibility Service để khóa ứng dụng thật',
+    required: false,
   },
   {
     key: 'usage',
     icon: BarChart2,
     label: 'Thống kê sử dụng',
     description:
-      'Xem thời gian sử dụng từng ứng dụng trên thiết bị',
-    required: true,
+      'Prototype: chưa đọc UsageStats từ thiết bị',
+    required: false,
   },
   {
     key: 'location',
@@ -114,6 +115,11 @@ export function PermissionScreen({navigation}: Props) {
     }));
   }
 
+  async function continueToHome() {
+    await markOnboardingComplete();
+    navigation.reset({index: 0, routes: [{name: 'Home'}]});
+  }
+
   return (
     <SafeAreaView
       style={styles.screen}
@@ -131,10 +137,8 @@ export function PermissionScreen({navigation}: Props) {
 
           <Text style={styles.title}>Cấp quyền</Text>
           <Text style={styles.subtitle}>
-            Touch Grass cần một số quyền để hoạt động đúng cách.
-            Quyền bắt buộc{' '}
-            <Text style={styles.requiredMark}>(*)</Text> phải được
-            cấp.
+            Quyền Camera và GPS sẽ được Android hỏi khi bạn bắt đầu nhiệm vụ.
+            App Control hiện là bản prototype và chưa yêu cầu quyền hệ thống.
           </Text>
         </View>
 
@@ -227,7 +231,7 @@ export function PermissionScreen({navigation}: Props) {
             !allRequiredGranted && styles.disabledButton,
             pressed && allRequiredGranted && styles.pressed,
           ]}
-          onPress={() => navigation.replace('Home')}>
+          onPress={continueToHome}>
           <Text style={styles.primaryButtonText}>
             {allRequiredGranted
               ? 'Tiếp tục'

@@ -239,6 +239,22 @@ export function ScreenTimerScreen({navigation, route}: Props) {
           </Text>
         ) : null}
 
+        {result ? (
+          <View style={styles.statusCard}>
+            <Text style={styles.statusText}>
+              Trạng thái backend: {result.verificationStatus}
+            </Text>
+            <Text style={styles.statusText}>
+              Tiến độ: {result.progress}/{result.targetValue} phút
+            </Text>
+            {result.failureReason ? (
+              <Text style={styles.failureText}>
+                Lý do: {result.failureReason}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
         {phase === 'failed' || phase === 'error' ? (
           <Pressable style={styles.retryButton} onPress={beginAttempt}>
             <Text style={styles.retryButtonText}>Thử lại</Text>
@@ -263,6 +279,9 @@ const styles = StyleSheet.create({
   stepRow: {flexDirection: 'row', alignItems: 'center', columnGap: 11},
   stepText: {flex: 1, color: colors.text, fontSize: 12, lineHeight: 18},
   processedText: {marginTop: 12, color: colors.textSecondary, fontSize: 11, textAlign: 'center'},
+  statusCard: {width: '100%', marginTop: 12, padding: 12, borderRadius: 14, backgroundColor: colors.surfaceSoft},
+  statusText: {color: colors.textSecondary, fontSize: 11, lineHeight: 17},
+  failureText: {color: colors.error, fontSize: 11, lineHeight: 17},
   retryButton: {width: '100%', height: 52, marginTop: 20, alignItems: 'center', justifyContent: 'center', borderRadius: 26, backgroundColor: colors.primaryButton},
   retryButtonText: {color: '#FFFFFF', fontSize: 15, fontWeight: '800'},
 });

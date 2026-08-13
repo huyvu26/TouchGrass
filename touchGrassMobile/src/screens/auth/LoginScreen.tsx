@@ -30,6 +30,7 @@ import Svg, { Path } from 'react-native-svg';
 
 import { colors } from '../../constants/colors';
 import type { AuthStackParamList } from '../../navigation/types';
+import {useAuth} from '../../auth/AuthContext';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
@@ -80,6 +81,7 @@ function AppleLogo() {
 }
 
 export function LoginScreen({ navigation }: Props) {
+  const {setUser} = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -127,6 +129,7 @@ export function LoginScreen({ navigation }: Props) {
       await saveAccessToken(
         authResponse.accessToken,
       );
+      setUser(authResponse.user);
 
       Alert.alert(
         'Đăng nhập thành công',
@@ -134,8 +137,10 @@ export function LoginScreen({ navigation }: Props) {
         [
           {
             text: 'Tiếp tục',
-            onPress: () =>
-              navigation.replace('Permission'),
+            onPress: () => navigation.reset({
+              index: 0,
+              routes: [{name: 'Permission'}],
+            }),
           },
         ],
       );
@@ -345,9 +350,7 @@ export function LoginScreen({ navigation }: Props) {
               !isSubmitting &&
               styles.pressed,
             ]}
-            onPress={() => {
-              void handleLogin();
-            }}>
+            onPress={handleLogin}>
             <Text style={styles.primaryButtonText}>
               {isSubmitting
                 ? 'Đang đăng nhập...'

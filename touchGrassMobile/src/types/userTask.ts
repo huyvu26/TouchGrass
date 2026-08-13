@@ -82,6 +82,20 @@ export interface ScreenTimerVerificationResponse {
   alreadyProcessed: boolean;
 }
 
+export interface ManualCheckinVerificationResponse {
+  userTaskId: string;
+  verificationStatus: UserTaskVerificationStatus;
+  passed: boolean;
+  progress: number;
+  targetValue: number;
+  targetSeconds: number;
+  checkinStartedAt: string | null;
+  checkinEndedAt: string | null;
+  durationSeconds: number;
+  failureReason: 'TARGET_NOT_REACHED' | null;
+  alreadyProcessed: boolean;
+}
+
 export interface StartUserTaskResponse {
   id: string;
   userId: string;

@@ -1,5 +1,6 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -15,7 +16,9 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {ScreenHeader} from '../../components/ScreenHeader';
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
-import {getMyProfile} from '../../services/userService';
+import {getMyProfile, updateMyProfile} from '../../services/userService';
+import type {AuthUser, UpdateProfileRequest} from '../../types/auth';
+import {useAuth} from '../../auth/AuthContext';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
@@ -30,16 +33,22 @@ const GOALS = [
 ] as const;
 
 export function EditProfileScreen({navigation}: Props) {
+  const {setUser} = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [dob, setDob] = useState('');
   const [goals, setGoals] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const initialProfile = useRef<AuthUser | null>(null);
 
   useEffect(() => {
     async function loadProfile() {
       try {
         const user = await getMyProfile();
+        initialProfile.current = user;
+        setUser(user);
         setName(user.fullName);
         setEmail(user.email);
         setDob(user.dateOfBirth ?? '');
@@ -51,11 +60,13 @@ export function EditProfileScreen({navigation}: Props) {
             ? error.message
             : 'Không thể tải thông tin tài khoản.',
         );
+      } finally {
+        setLoading(false);
       }
     }
 
     loadProfile();
-  }, []);
+  }, [setUser]);
 
   const initials = name
     .trim()
@@ -72,9 +83,53 @@ export function EditProfileScreen({navigation}: Props) {
     );
   }
 
-  function save() {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2200);
+  async function save() {
+    const initial = initialProfile.current;
+    if (!initial || saving) {
+      return;
+    }
+
+    const normalizedName = name.trim();
+    if (normalizedName.length < 3) {
+      Alert.alert('Dữ liệu chưa hợp lệ', 'Họ và tên phải có ít nhất 3 ký tự.');
+      return;
+    }
+
+    const changes: UpdateProfileRequest = {};
+    if (normalizedName !== initial.fullName) {
+      changes.fullName = normalizedName;
+    }
+    const normalizedDob = dob.trim() || null;
+    if (normalizedDob !== initial.dateOfBirth) {
+      changes.dateOfBirth = normalizedDob;
+    }
+    if (JSON.stringify(goals) !== JSON.stringify(initial.goals)) {
+      changes.goals = goals;
+    }
+
+    if (Object.keys(changes).length === 0) {
+      navigation.goBack();
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const updated = await updateMyProfile(changes);
+      initialProfile.current = updated;
+      setUser(updated);
+      setName(updated.fullName);
+      setDob(updated.dateOfBirth ?? '');
+      setGoals(updated.goals);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2200);
+    } catch (error) {
+      Alert.alert(
+        'Không thể cập nhật hồ sơ',
+        error instanceof Error ? error.message : 'Vui lòng thử lại sau.',
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -89,7 +144,12 @@ export function EditProfileScreen({navigation}: Props) {
         <View style={styles.avatarSection}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initials}</Text>
-            <Pressable style={styles.cameraButton}>
+            <Pressable
+              style={styles.cameraButton}
+              onPress={() => Alert.alert(
+                'Ảnh đại diện',
+                'Backend hiện chưa có API tải ảnh đại diện từ thiết bị.',
+              )}>
               <Camera size={14} color="#FFFFFF" />
             </Pressable>
           </View>
@@ -97,6 +157,10 @@ export function EditProfileScreen({navigation}: Props) {
             Thay đổi ảnh đại diện
           </Text>
         </View>
+
+        {loading ? (
+          <ActivityIndicator color={colors.primaryButton} />
+        ) : null}
 
         {[
           ['Họ và tên', name, setName],
@@ -109,6 +173,7 @@ export function EditProfileScreen({navigation}: Props) {
               value={value as string}
               style={styles.input}
               placeholderTextColor={colors.placeholder}
+              editable={(label as string) !== 'Địa chỉ email' && !loading && !saving}
               onChangeText={setter as (text: string) => void}
             />
           </View>
@@ -145,8 +210,15 @@ export function EditProfileScreen({navigation}: Props) {
           })}
         </View>
 
-        <Pressable style={styles.saveButton} onPress={save}>
-          <Text style={styles.saveText}>Lưu thay đổi</Text>
+        <Pressable
+          disabled={loading || saving}
+          style={[styles.saveButton, (loading || saving) && styles.disabled]}
+          onPress={save}>
+          {saving ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.saveText}>Lưu thay đổi</Text>
+          )}
         </Pressable>
       </ScrollView>
 
@@ -181,6 +253,7 @@ const styles = StyleSheet.create({
   goalTextSelected: {color: colors.primaryButton},
   saveButton: {height: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 27, backgroundColor: colors.primaryButton},
   saveText: {color: '#FFFFFF', fontSize: 16, fontWeight: '800'},
+  disabled: {opacity: 0.6},
   snackbar: {position: 'absolute', left: 20, right: 20, bottom: 24, padding: 15, flexDirection: 'row', alignItems: 'center', columnGap: 10, borderRadius: 16, backgroundColor: colors.primary, elevation: 6},
   snackbarText: {color: '#FFFFFF', fontSize: 13, fontWeight: '600'},
 });

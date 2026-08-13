@@ -399,7 +399,7 @@ export function HomeScreen({navigation}: Props) {
         <View style={styles.appsSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>
-              Ứng dụng đang kiểm soát
+              Kiểm soát ứng dụng · Prototype
             </Text>
             <Pressable
               accessibilityRole="button"

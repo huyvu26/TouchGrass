@@ -268,6 +268,13 @@ export function AppManagementScreen({navigation}: Props) {
         </Text>
       </View>
 
+      <View style={styles.prototypeBanner}>
+        <Text style={styles.prototypeText}>
+          PROTOTYPE · Danh sách và giới hạn bên dưới chỉ dùng để minh họa UI,
+          chưa đọc ứng dụng đã cài hoặc khóa ứng dụng thật.
+        </Text>
+      </View>
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}>
@@ -523,6 +530,19 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
     color: colors.textSecondary,
     fontSize: 14,
+    textAlign: 'center',
+  },
+  prototypeBanner: {
+    marginHorizontal: 20,
+    marginTop: 10,
+    padding: 11,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceSoft,
+  },
+  prototypeText: {
+    color: colors.textSecondary,
+    fontSize: 10,
+    lineHeight: 15,
     textAlign: 'center',
   },
   footer: {

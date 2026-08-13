@@ -106,7 +106,8 @@ export function TaskDetailScreen({navigation, route}: Props) {
     const supported =
       task.verificationType === 'GPS_DISTANCE' ||
       task.verificationType === 'PHOTO_AI' ||
-      task.verificationType === 'SCREEN_OFF_TIMER';
+      task.verificationType === 'SCREEN_OFF_TIMER' ||
+      task.verificationType === 'MANUAL_CHECKIN';
 
     if (!supported) {
       Alert.alert(
@@ -129,8 +130,12 @@ export function TaskDetailScreen({navigation, route}: Props) {
         navigation.navigate('AICamera', {
           userTaskId: result.id,
         });
-      } else {
+      } else if (task.verificationType === 'SCREEN_OFF_TIMER') {
         navigation.navigate('ScreenTimer', {
+          userTaskId: result.id,
+        });
+      } else {
+        navigation.navigate('ManualCheckin', {
           userTaskId: result.id,
         });
       }

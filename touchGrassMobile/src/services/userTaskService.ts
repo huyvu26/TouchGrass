@@ -1,11 +1,11 @@
-import {API_BASE_URL} from '../config/api';
-import {getAccessToken} from '../storage/authStorage';
+import {apiRequest} from './apiClient';
 import type {
   ClaimRewardResponse,
   CompleteTaskResponse,
   GpsPoint,
   GpsVerificationResponse,
   MlKitLabel,
+  ManualCheckinVerificationResponse,
   PhotoVerificationResponse,
   ScreenTimerVerificationResponse,
   StartUserTaskResponse,
@@ -14,60 +14,10 @@ import type {
   UserTaskListResponse,
 } from '../types/userTask';
 
-interface ApiErrorResponse {
-  message?: string | string[];
-}
-
-interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH';
-  body?: unknown;
-}
-
-function getErrorMessage(error: ApiErrorResponse): string {
-  if (Array.isArray(error.message)) {
-    return error.message.join('\n');
-  }
-
-  return error.message ?? 'Không thể kết nối với máy chủ.';
-}
-
-async function authorizedRequest<T>(
-  path: string,
-  options: RequestOptions = {},
-): Promise<T> {
-  const accessToken = await getAccessToken();
-
-  if (!accessToken) {
-    throw new Error('Bạn chưa đăng nhập. Vui lòng đăng nhập lại.');
-  }
-
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: options.method ?? 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      ...(options.body === undefined
-        ? {}
-        : {'Content-Type': 'application/json'}),
-    },
-    body:
-      options.body === undefined
-        ? undefined
-        : JSON.stringify(options.body),
-  });
-
-  const responseData = (await response.json()) as T | ApiErrorResponse;
-
-  if (!response.ok) {
-    throw new Error(getErrorMessage(responseData as ApiErrorResponse));
-  }
-
-  return responseData as T;
-}
-
 export function startUserTask(
   taskId: string,
 ): Promise<StartUserTaskResponse> {
-  return authorizedRequest<StartUserTaskResponse>('/user-tasks', {
+  return apiRequest<StartUserTaskResponse>('/user-tasks', {
     method: 'POST',
     body: {taskId},
   });
@@ -77,7 +27,7 @@ export function getUserTasks(
   page = 1,
   limit = 10,
 ): Promise<UserTaskListResponse> {
-  return authorizedRequest<UserTaskListResponse>(
+  return apiRequest<UserTaskListResponse>(
     `/user-tasks?page=${page}&limit=${limit}`,
   );
 }
@@ -85,7 +35,7 @@ export function getUserTasks(
 export function getUserTaskById(
   userTaskId: string,
 ): Promise<UserTaskDetail> {
-  return authorizedRequest<UserTaskDetail>(
+  return apiRequest<UserTaskDetail>(
     `/user-tasks/${encodeURIComponent(userTaskId)}`,
   );
 }
@@ -94,7 +44,7 @@ export function updateUserTaskProgress(
   userTaskId: string,
   progress: number,
 ): Promise<UpdateUserTaskProgressResponse> {
-  return authorizedRequest<UpdateUserTaskProgressResponse>(
+  return apiRequest<UpdateUserTaskProgressResponse>(
     `/user-tasks/${encodeURIComponent(userTaskId)}/progress`,
     {
       method: 'PATCH',
@@ -106,7 +56,7 @@ export function updateUserTaskProgress(
 export function completeUserTask(
   userTaskId: string,
 ): Promise<CompleteTaskResponse> {
-  return authorizedRequest<CompleteTaskResponse>(
+  return apiRequest<CompleteTaskResponse>(
     `/user-tasks/${encodeURIComponent(userTaskId)}/complete`,
     {method: 'POST'},
   );
@@ -115,7 +65,7 @@ export function completeUserTask(
 export function claimUserTaskReward(
   userTaskId: string,
 ): Promise<ClaimRewardResponse> {
-  return authorizedRequest<ClaimRewardResponse>(
+  return apiRequest<ClaimRewardResponse>(
     `/user-tasks/${encodeURIComponent(userTaskId)}/claim-reward`,
     {method: 'POST'},
   );
@@ -124,7 +74,7 @@ export function claimUserTaskReward(
 export function startGpsTracking(
   userTaskId: string,
 ): Promise<GpsVerificationResponse> {
-  return authorizedRequest<GpsVerificationResponse>(
+  return apiRequest<GpsVerificationResponse>(
     `/user-tasks/${encodeURIComponent(userTaskId)}/gps/start`,
     {method: 'POST'},
   );
@@ -134,7 +84,7 @@ export function finishGpsTracking(
   userTaskId: string,
   points: GpsPoint[],
 ): Promise<GpsVerificationResponse> {
-  return authorizedRequest<GpsVerificationResponse>(
+  return apiRequest<GpsVerificationResponse>(
     `/user-tasks/${encodeURIComponent(userTaskId)}/gps/finish`,
     {
       method: 'POST',
@@ -146,7 +96,7 @@ export function finishGpsTracking(
 export function startScreenTimer(
   userTaskId: string,
 ): Promise<ScreenTimerVerificationResponse> {
-  return authorizedRequest<ScreenTimerVerificationResponse>(
+  return apiRequest<ScreenTimerVerificationResponse>(
     `/user-tasks/${encodeURIComponent(userTaskId)}/screen-timer/start`,
     {method: 'POST'},
   );
@@ -157,7 +107,7 @@ export function finishScreenTimer(
   screenOffAt: string,
   screenOnAt: string,
 ): Promise<ScreenTimerVerificationResponse> {
-  return authorizedRequest<ScreenTimerVerificationResponse>(
+  return apiRequest<ScreenTimerVerificationResponse>(
     `/user-tasks/${encodeURIComponent(userTaskId)}/screen-timer/finish`,
     {
       method: 'POST',
@@ -172,12 +122,6 @@ export async function verifyUserTaskPhoto(
   labels: MlKitLabel[],
   capturedAt: string,
 ): Promise<PhotoVerificationResponse> {
-  const accessToken = await getAccessToken();
-
-  if (!accessToken) {
-    throw new Error('Bạn chưa đăng nhập. Vui lòng đăng nhập lại.');
-  }
-
   const formData = new FormData();
   formData.append('image', {
     uri: imageUri,
@@ -187,21 +131,26 @@ export async function verifyUserTaskPhoto(
   formData.append('labels', JSON.stringify(labels));
   formData.append('capturedAt', capturedAt);
 
-  const response = await fetch(
-    `${API_BASE_URL}/user-tasks/${encodeURIComponent(userTaskId)}/photo/verify`,
-    {
-      method: 'POST',
-      headers: {Authorization: `Bearer ${accessToken}`},
-      body: formData,
-    },
+  return apiRequest<PhotoVerificationResponse>(
+    `/user-tasks/${encodeURIComponent(userTaskId)}/photo/verify`,
+    {method: 'POST', body: formData},
   );
-  const data = (await response.json()) as
-    | PhotoVerificationResponse
-    | ApiErrorResponse;
+}
 
-  if (!response.ok) {
-    throw new Error(getErrorMessage(data as ApiErrorResponse));
-  }
+export function startManualCheckin(
+  userTaskId: string,
+): Promise<ManualCheckinVerificationResponse> {
+  return apiRequest<ManualCheckinVerificationResponse>(
+    `/user-tasks/${encodeURIComponent(userTaskId)}/manual-checkin/start`,
+    {method: 'POST'},
+  );
+}
 
-  return data as PhotoVerificationResponse;
+export function finishManualCheckin(
+  userTaskId: string,
+): Promise<ManualCheckinVerificationResponse> {
+  return apiRequest<ManualCheckinVerificationResponse>(
+    `/user-tasks/${encodeURIComponent(userTaskId)}/manual-checkin/finish`,
+    {method: 'POST'},
+  );
 }

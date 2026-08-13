@@ -15,6 +15,7 @@ import {ScreenHeader} from '../../components/ScreenHeader';
 import {ToggleSwitch} from '../../components/ToggleSwitch';
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
+import {useAuth} from '../../auth/AuthContext';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Settings'>;
 
@@ -76,6 +77,7 @@ function SettingsRow({
 }
 
 export function SettingsScreen({navigation}: Props) {
+  const {logout} = useAuth();
   const [toggles, setToggles] = useState<
     Record<ToggleKey, boolean>
   >({
@@ -97,6 +99,12 @@ export function SettingsScreen({navigation}: Props) {
   }
 
   const common = {toggles, onToggle: toggle};
+
+  async function confirmLogout() {
+    await logout();
+    setShowLogout(false);
+    navigation.reset({index: 0, routes: [{name: 'Login'}]});
+  }
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -239,7 +247,7 @@ export function SettingsScreen({navigation}: Props) {
               </Pressable>
               <Pressable
                 style={styles.confirmButton}
-                onPress={() => navigation.replace('Login')}>
+                onPress={confirmLogout}>
                 <Text style={styles.confirmButtonText}>
                   Đăng xuất
                 </Text>

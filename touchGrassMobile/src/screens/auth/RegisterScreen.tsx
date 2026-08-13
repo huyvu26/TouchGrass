@@ -30,6 +30,7 @@ import Svg, { Path } from 'react-native-svg';
 
 import { colors } from '../../constants/colors';
 import type { AuthStackParamList } from '../../navigation/types';
+import {useAuth} from '../../auth/AuthContext';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
@@ -179,6 +180,7 @@ function getPasswordStrength(password: string) {
 }
 
 export function RegisterScreen({ navigation }: Props) {
+  const {setUser} = useAuth();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -244,7 +246,8 @@ export function RegisterScreen({ navigation }: Props) {
       });
       await saveAccessToken(
         authResponse.accessToken,
-      )
+      );
+      setUser(authResponse.user);
 
       Alert.alert(
         'Tạo tài khoản thành công',
@@ -252,8 +255,10 @@ export function RegisterScreen({ navigation }: Props) {
         [
           {
             text: 'Tiếp tục',
-            onPress: () =>
-              navigation.replace('Permission'),
+            onPress: () => navigation.reset({
+              index: 0,
+              routes: [{name: 'Permission'}],
+            }),
           },
         ],
       );
@@ -498,9 +503,7 @@ export function RegisterScreen({ navigation }: Props) {
               !isSubmitting &&
               styles.pressed,
             ]}
-            onPress={() => {
-              void handleRegister();
-            }}>
+            onPress={handleRegister}>
             <Text style={styles.primaryButtonText}>
               {isSubmitting
                 ? 'Đang tạo tài khoản...'

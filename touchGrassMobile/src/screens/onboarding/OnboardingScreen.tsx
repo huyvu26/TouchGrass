@@ -17,6 +17,7 @@ import Svg, {
 
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
+import {markOnboardingComplete} from '../../storage/authStorage';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
@@ -131,6 +132,11 @@ function NatureIllustration() {
 }
 
 export function OnboardingScreen({navigation}: Props) {
+  async function continueToLogin() {
+    await markOnboardingComplete();
+    navigation.reset({index: 0, routes: [{name: 'Login'}]});
+  }
+
   return (
     <SafeAreaView
       style={styles.screen}
@@ -171,7 +177,7 @@ export function OnboardingScreen({navigation}: Props) {
             styles.primaryButton,
             pressed && styles.pressed,
           ]}
-          onPress={() => navigation.replace('Login')}>
+          onPress={continueToLogin}>
           <Text style={styles.primaryButtonText}>Bắt đầu</Text>
           <ChevronRight
             size={19}

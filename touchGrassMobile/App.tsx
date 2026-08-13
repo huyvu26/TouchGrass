@@ -5,6 +5,8 @@ import React from 'react';
 
 import { colors } from './src/constants/colors';
 import { AuthNavigator } from './src/navigation/AuthNavigator';
+import {AuthProvider} from './src/auth/AuthContext';
+import {navigationRef} from './src/navigation/rootNavigation';
 
 export default function App() {
   
@@ -15,9 +17,11 @@ export default function App() {
         backgroundColor={colors.background}
       />
 
-      <NavigationContainer>
-        <AuthNavigator />
-      </NavigationContainer>
+      <AuthProvider>
+        <NavigationContainer ref={navigationRef}>
+          <AuthNavigator />
+        </NavigationContainer>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }
