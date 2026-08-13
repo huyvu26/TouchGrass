@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">touchGrassMobile</string>
+    <string name="accessibility_service_name">Theo dõi ứng dụng Touch Grass</string>
+    <string name="accessibility_service_description">Chỉ phát hiện ứng dụng đang ở phía trước để cảnh báo giới hạn. Không đọc nội dung, mật khẩu hoặc dữ liệu nhập.</string>
 </resources>

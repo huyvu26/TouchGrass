@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from 'react';
+import React, {useCallback, useMemo, useState} from 'react';
 import {
   Alert,
   Pressable,
@@ -8,561 +8,200 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import {
-  Bell,
-  Camera,
-  ChevronLeft,
-  ChevronRight,
-  Lock,
-  MessageCircle,
-  Music2,
-  Plus,
-  Search,
-} from 'lucide-react-native';
+import {ChevronLeft, ChevronRight, Lock, Search, ShieldAlert, Smartphone} from 'lucide-react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {useFocusEffect} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import Svg, {Path} from 'react-native-svg';
 
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
+import type {AppInfo, AppUsageInfo} from '../../native/usageStats';
+import {
+  getSelectableApps,
+  getTodayUsage,
+  isUsageAccessGranted,
+  openUsageAccessSettings,
+} from '../../services/usageStatsService';
+import {
+  getAppLimitRules,
+  removeAppLimitRule,
+  saveAppLimitRule,
+  type AppLimitRule,
+} from '../../storage/appControlStorage';
 
-type Props = NativeStackScreenProps<
-  AuthStackParamList,
-  'AppManagement'
->;
-
-const MANAGED_APPS = [
-  {
-    name: 'TikTok',
-    category: 'Giải trí',
-    limit: '20 phút/ngày',
-    enabled: true,
-  },
-  {
-    name: 'Facebook',
-    category: 'Mạng xã hội',
-    limit: '30 phút/ngày',
-    enabled: true,
-  },
-  {
-    name: 'Instagram',
-    category: 'Mạng xã hội',
-    limit: '25 phút/ngày',
-    enabled: true,
-  },
-  {
-    name: 'YouTube',
-    category: 'Video',
-    limit: '45 phút/ngày',
-    enabled: false,
-  },
-  {
-    name: 'Messenger',
-    category: 'Nhắn tin',
-    limit: '15 phút/ngày',
-    enabled: true,
-  },
-] as const;
-
-type FilterKey = 'limited' | 'all';
-
-interface ToggleProps {
-  enabled: boolean;
-  label: string;
-  onToggle: () => void;
-}
-
-function ToggleSwitch({
-  enabled,
-  label,
-  onToggle,
-}: ToggleProps) {
-  return (
-    <Pressable
-      accessibilityRole="switch"
-      accessibilityLabel={label}
-      accessibilityState={{checked: enabled}}
-      style={[
-        styles.toggle,
-        enabled && styles.toggleEnabled,
-      ]}
-      hitSlop={5}
-      onPress={onToggle}>
-      <View
-        style={[
-          styles.toggleThumb,
-          enabled && styles.toggleThumbEnabled,
-        ]}
-      />
-    </Pressable>
-  );
-}
-
-function AppIcon({name}: {name: string}) {
-  if (name === 'TikTok') {
-    return (
-      <View style={[styles.appIcon, styles.tiktokIcon]}>
-        <Music2 size={25} color="#FFFFFF" />
-      </View>
-    );
-  }
-
-  if (name === 'Facebook') {
-    return (
-      <View style={[styles.appIcon, styles.facebookIcon]}>
-        <Text style={styles.facebookLetter}>f</Text>
-      </View>
-    );
-  }
-
-  if (name === 'Instagram') {
-    return (
-      <View style={[styles.appIcon, styles.instagramIcon]}>
-        <Camera size={24} color="#FFFFFF" />
-      </View>
-    );
-  }
-
-  if (name === 'YouTube') {
-    return (
-      <View style={[styles.appIcon, styles.youtubeIcon]}>
-        <Svg width={27} height={27} viewBox="0 0 24 24">
-          <Path
-            d="M23.5 6.2a3 3 0 00-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 00.5 6.2C0 8.1 0 12 0 12s0 3.9.5 5.8a3 3 0 002.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 002.1-2.1c.5-1.9.5-5.8.5-5.8s0-3.9-.5-5.8zM9.5 15.6V8.4L15.8 12l-6.3 3.6z"
-            fill="#FFFFFF"
-          />
-        </Svg>
-      </View>
-    );
-  }
-
-  return (
-    <View style={[styles.appIcon, styles.messengerIcon]}>
-      <MessageCircle
-        size={25}
-        color="#FFFFFF"
-        fill="#FFFFFF"
-      />
-    </View>
-  );
-}
+type Props = NativeStackScreenProps<AuthStackParamList, 'AppManagement'>;
+type FilterKey = 'selected' | 'all';
 
 export function AppManagementScreen({navigation}: Props) {
+  const [apps, setApps] = useState<AppInfo[]>([]);
+  const [rules, setRules] = useState<AppLimitRule[]>([]);
+  const [usage, setUsage] = useState<AppUsageInfo[]>([]);
+  const [hasUsageAccess, setHasUsageAccess] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<FilterKey>('limited');
-  const [toggles, setToggles] = useState<Record<string, boolean>>(
-    Object.fromEntries(
-      MANAGED_APPS.map(app => [app.name, app.enabled]),
-    ),
+  const [filter, setFilter] = useState<FilterKey>('selected');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const granted = await isUsageAccessGranted();
+      setHasUsageAccess(granted);
+      const [installed, storedRules, todayUsage] = await Promise.all([
+        getSelectableApps(),
+        getAppLimitRules(),
+        granted ? getTodayUsage() : Promise.resolve([]),
+      ]);
+      setApps(installed);
+      setRules(storedRules);
+      setUsage(todayUsage);
+    } catch (error) {
+      Alert.alert('Không thể đọc ứng dụng', error instanceof Error ? error.message : 'Native module không khả dụng.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const ruleByPackage = useMemo(
+    () => new Map(rules.map(rule => [rule.packageName, rule])),
+    [rules],
   );
-
-  const filteredApps = useMemo(
-    () =>
-      MANAGED_APPS.filter(app => {
-        const matchesSearch = app.name
-          .toLowerCase()
-          .includes(search.trim().toLowerCase());
-        const matchesFilter =
-          filter === 'all' || toggles[app.name];
-
-        return matchesSearch && matchesFilter;
-      }),
-    [filter, search, toggles],
+  const usageByPackage = useMemo(
+    () => new Map(usage.map(item => [item.packageName, item])),
+    [usage],
   );
+  const filtered = useMemo(() => apps.filter(app => {
+    const matchesSearch = app.appName.toLowerCase().includes(search.trim().toLowerCase());
+    return matchesSearch && (filter === 'all' || ruleByPackage.has(app.packageName));
+  }), [apps, filter, ruleByPackage, search]);
 
-  function toggleApp(name: string) {
-    setToggles(current => ({
-      ...current,
-      [name]: !current[name],
-    }));
+  async function toggleApp(app: AppInfo) {
+    if (app.isSensitive) {
+      Alert.alert(
+        'Ứng dụng nhạy cảm được bảo vệ',
+        'Android phân loại đây là ứng dụng tài chính. Touch Grass mặc định không cho thêm ứng dụng này vào giới hạn.',
+      );
+      return;
+    }
+    const existing = ruleByPackage.get(app.packageName);
+    if (existing) {
+      await removeAppLimitRule(app.packageName);
+      await load();
+      return;
+    }
+    Alert.alert(
+      'Xác nhận chọn ứng dụng',
+      `Chỉ thêm ${app.appName} nếu bạn thực sự muốn theo dõi giới hạn của ứng dụng này. Touch Grass hiện chưa tự động khóa ứng dụng.`,
+      [
+        {text: 'Hủy', style: 'cancel'},
+        {
+          text: 'Chọn ứng dụng',
+          onPress: () => saveAppLimitRule({
+            packageName: app.packageName,
+            appName: app.appName,
+            enabled: true,
+            dailyLimitMinutes: 30,
+            activeDays: [0, 1, 2, 3, 4, 5, 6],
+            startTime: '00:00',
+            endTime: '23:59',
+          }).then(load),
+        },
+      ],
+    );
+  }
+
+  function formatUsage(packageName: string) {
+    if (!hasUsageAccess) return 'Cần cấp Usage Access';
+    const minutes = Math.floor((usageByPackage.get(packageName)?.totalTimeInForegroundMs ?? 0) / 60000);
+    return `${minutes} phút hôm nay`;
   }
 
   return (
-    <SafeAreaView
-      style={styles.screen}
-      edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <View style={styles.titleRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Quay lại"
-            style={styles.circleButton}
-            onPress={() => navigation.goBack()}>
-            <ChevronLeft size={20} color={colors.text} />
-          </Pressable>
-
-          <Text style={styles.title}>Quản lý ứng dụng</Text>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Thông báo"
-            hitSlop={8}
-            onPress={() =>
-              Alert.alert(
-                'Thông báo',
-                'Màn hình thông báo sẽ được triển khai sau.',
-              )
-            }>
-            <Bell size={20} color={colors.textSecondary} />
-          </Pressable>
-        </View>
-
-        <View style={styles.searchContainer}>
-          <Search
-            size={17}
-            color={colors.textSecondary}
-          />
-          <TextInput
-            style={styles.searchInput}
-            value={search}
-            placeholder="Tìm ứng dụng..."
-            placeholderTextColor={colors.placeholder}
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setSearch}
-          />
-        </View>
-
-        <View style={styles.filterRow}>
-          <Pressable
-            style={[
-              styles.filterChip,
-              filter === 'limited' && styles.filterChipActive,
-            ]}
-            onPress={() => setFilter('limited')}>
-            <Text
-              style={[
-                styles.filterText,
-                filter === 'limited' &&
-                  styles.filterTextActive,
-              ]}>
-              Đang giới hạn
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.filterChip,
-              filter === 'all' && styles.filterChipActive,
-            ]}
-            onPress={() => setFilter('all')}>
-            <Text
-              style={[
-                styles.filterText,
-                filter === 'all' && styles.filterTextActive,
-              ]}>
-              Tất cả ứng dụng
-            </Text>
-          </Pressable>
-        </View>
+        <Pressable style={styles.back} onPress={() => navigation.goBack()}><ChevronLeft size={20} color={colors.text} /></Pressable>
+        <Text style={styles.title}>Quản lý ứng dụng</Text>
       </View>
 
-      <View style={styles.summary}>
-        <Lock size={15} color={colors.primaryButton} />
-        <Text style={styles.summaryText}>
-          Dữ liệu minh họa, chưa đọc ứng dụng từ thiết bị
-        </Text>
+      <View style={styles.banner}>
+        <ShieldAlert size={17} color={colors.primaryButton} />
+        <Text style={styles.bannerText}>Giai đoạn an toàn: chỉ đọc thời lượng và cảnh báo bên trong Touch Grass. Ứng dụng chưa tự động khóa app khác.</Text>
       </View>
 
-      <View style={styles.prototypeBanner}>
-        <Text style={styles.prototypeText}>
-          PROTOTYPE · Danh sách và giới hạn bên dưới chỉ dùng để minh họa UI,
-          chưa đọc ứng dụng đã cài hoặc khóa ứng dụng thật.
-        </Text>
-      </View>
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}>
-        {filteredApps.map(app => (
-          <View key={app.name} style={styles.appCard}>
-            <Pressable
-              accessibilityRole="button"
-              style={styles.appMain}
-              onPress={() =>
-                navigation.navigate('AppLimit', {
-                  appName: app.name,
-                })
-              }>
-              <AppIcon name={app.name} />
-
-              <View style={styles.appInfo}>
-                <Text style={styles.appName}>{app.name}</Text>
-                <Text style={styles.appMeta}>
-                  {app.category} · Thiết lập mẫu
-                </Text>
-              </View>
-            </Pressable>
-
-            <ToggleSwitch
-              enabled={Boolean(toggles[app.name])}
-              label={`Giới hạn ${app.name}`}
-              onToggle={() => toggleApp(app.name)}
-            />
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Mở chi tiết ${app.name}`}
-              hitSlop={6}
-              onPress={() =>
-                navigation.navigate('AppLimit', {
-                  appName: app.name,
-                })
-              }>
-              <ChevronRight
-                size={18}
-                color={colors.textSecondary}
-              />
-            </Pressable>
+      {!hasUsageAccess ? (
+        <Pressable style={styles.permissionCard} onPress={openUsageAccessSettings}>
+          <Lock size={18} color={colors.error} />
+          <View style={styles.permissionInfo}>
+            <Text style={styles.permissionTitle}>Usage Access chưa được cấp</Text>
+            <Text style={styles.permissionText}>Mở cài đặt Android để xem thời lượng sử dụng thật.</Text>
           </View>
-        ))}
-
-        {filteredApps.length === 0 ? (
-          <Text style={styles.emptyText}>
-            Không tìm thấy ứng dụng nào.
-          </Text>
-        ) : null}
-      </ScrollView>
-
-      <View style={styles.footer}>
-        <Pressable
-          accessibilityRole="button"
-          style={({pressed}) => [
-            styles.primaryButton,
-            pressed && styles.pressed,
-          ]}
-          onPress={() =>
-            Alert.alert(
-              'Thêm ứng dụng',
-              'Danh sách ứng dụng cài đặt sẽ được kết nối sau.',
-            )
-          }>
-          <Plus size={18} color="#FFFFFF" />
-          <Text style={styles.primaryButtonText}>
-            Thêm ứng dụng
-          </Text>
+          <ChevronRight size={18} color={colors.textSecondary} />
         </Pressable>
+      ) : null}
+
+      <View style={styles.searchBox}>
+        <Search size={17} color={colors.textSecondary} />
+        <TextInput value={search} onChangeText={setSearch} placeholder="Tìm ứng dụng trên thiết bị…" placeholderTextColor={colors.placeholder} style={styles.input} />
       </View>
+      <View style={styles.filters}>
+        {(['selected', 'all'] as const).map(item => (
+          <Pressable key={item} style={[styles.filter, filter === item && styles.filterActive]} onPress={() => setFilter(item)}>
+            <Text style={[styles.filterText, filter === item && styles.filterTextActive]}>{item === 'selected' ? 'Đã chọn' : 'Tất cả ứng dụng'}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+        {loading ? <Text style={styles.empty}>Đang đọc danh sách từ Android…</Text> : null}
+        {!loading && filtered.length === 0 ? <Text style={styles.empty}>{filter === 'selected' ? 'Bạn chưa chọn ứng dụng nào.' : 'Không tìm thấy ứng dụng phù hợp.'}</Text> : null}
+        {filtered.map(app => {
+          const rule = ruleByPackage.get(app.packageName);
+          const usedMinutes = Math.floor((usageByPackage.get(app.packageName)?.totalTimeInForegroundMs ?? 0) / 60000);
+          const exceeded = Boolean(rule?.enabled && usedMinutes >= rule.dailyLimitMinutes);
+          return (
+            <View key={app.packageName} style={styles.appCard}>
+              <View style={styles.appIcon}><Smartphone size={22} color={colors.primaryButton} /></View>
+              <Pressable style={styles.appInfo} onPress={() => navigation.navigate('AppLimit', {packageName: app.packageName, appName: app.appName})}>
+                <Text style={styles.appName}>{app.appName}</Text>
+                <Text numberOfLines={1} style={styles.packageName}>{app.packageName}</Text>
+                <Text style={[styles.usage, exceeded && styles.exceeded]}>{formatUsage(app.packageName)}{rule ? ` · Giới hạn ${rule.dailyLimitMinutes} phút` : ''}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{checked: Boolean(rule)}}
+                style={[styles.selectButton, rule && styles.selectButtonActive]}
+                onPress={() => toggleApp(app)}>
+                <Text style={[styles.selectText, rule && styles.selectTextActive]}>{rule ? 'Đã chọn' : 'Chọn'}</Text>
+              </Pressable>
+            </View>
+          );
+        })}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
-  titleRow: {
-    marginBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    columnGap: 12,
-  },
-  circleButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 20,
-    backgroundColor: colors.surfaceSoft,
-  },
-  title: {
-    flex: 1,
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  searchContainer: {
-    height: 46,
-    marginBottom: 12,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    columnGap: 9,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 14,
-    backgroundColor: colors.inputBackground,
-  },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 0,
-    color: colors.text,
-    fontSize: 14,
-  },
-  filterRow: {
-    flexDirection: 'row',
-    columnGap: 8,
-  },
-  filterChip: {
-    height: 34,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 17,
-  },
-  filterChipActive: {
-    borderColor: colors.primaryButton,
-    backgroundColor: colors.surfaceSoft,
-  },
-  filterText: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  filterTextActive: {
-    color: colors.primaryButton,
-  },
-  summary: {
-    marginHorizontal: 20,
-    marginBottom: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    columnGap: 8,
-    borderRadius: 14,
-    backgroundColor: colors.surfaceSoft,
-  },
-  summaryText: {
-    color: colors.primary,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    rowGap: 10,
-  },
-  appCard: {
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    columnGap: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 18,
-    backgroundColor: colors.surface,
-  },
-  appMain: {
-    minWidth: 0,
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    columnGap: 12,
-  },
-  appIcon: {
-    width: 46,
-    height: 46,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 11,
-  },
-  tiktokIcon: {
-    backgroundColor: '#010101',
-  },
-  facebookIcon: {
-    backgroundColor: '#1877F2',
-  },
-  facebookLetter: {
-    color: '#FFFFFF',
-    fontSize: 31,
-    lineHeight: 37,
-    fontWeight: '800',
-  },
-  instagramIcon: {
-    backgroundColor: '#C13584',
-  },
-  youtubeIcon: {
-    backgroundColor: '#FF0000',
-  },
-  messengerIcon: {
-    backgroundColor: '#0099FF',
-  },
-  appInfo: {
-    minWidth: 0,
-    flex: 1,
-  },
-  appName: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  appMeta: {
-    marginTop: 2,
-    color: colors.textSecondary,
-    fontSize: 12,
-  },
-  toggle: {
-    width: 52,
-    height: 30,
-    padding: 3,
-    justifyContent: 'center',
-    borderRadius: 15,
-    backgroundColor: '#C8D4C0',
-  },
-  toggleEnabled: {
-    backgroundColor: colors.primaryButton,
-  },
-  toggleThumb: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    elevation: 2,
-  },
-  toggleThumbEnabled: {
-    alignSelf: 'flex-end',
-  },
-  emptyText: {
-    paddingVertical: 40,
-    color: colors.textSecondary,
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  prototypeBanner: {
-    marginHorizontal: 20,
-    marginTop: 10,
-    padding: 11,
-    borderRadius: 12,
-    backgroundColor: colors.surfaceSoft,
-  },
-  prototypeText: {
-    color: colors.textSecondary,
-    fontSize: 10,
-    lineHeight: 15,
-    textAlign: 'center',
-  },
-  footer: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  primaryButton: {
-    height: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    columnGap: 8,
-    borderRadius: 26,
-    backgroundColor: colors.primaryButton,
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  pressed: {
-    opacity: 0.78,
-  },
+  screen: {flex: 1, backgroundColor: colors.background},
+  header: {paddingHorizontal: 20, paddingTop: 8, flexDirection: 'row', alignItems: 'center', columnGap: 12},
+  back: {width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: colors.surfaceSoft},
+  title: {color: colors.text, fontSize: 20, fontWeight: '800'},
+  banner: {margin: 20, marginBottom: 12, padding: 13, flexDirection: 'row', alignItems: 'flex-start', columnGap: 9, borderRadius: 14, backgroundColor: colors.surfaceSoft},
+  bannerText: {flex: 1, color: colors.textSecondary, fontSize: 12, lineHeight: 18},
+  permissionCard: {marginHorizontal: 20, marginBottom: 12, padding: 14, flexDirection: 'row', alignItems: 'center', columnGap: 10, borderWidth: 1, borderColor: colors.error, borderRadius: 15, backgroundColor: colors.surface},
+  permissionInfo: {flex: 1}, permissionTitle: {color: colors.error, fontSize: 13, fontWeight: '700'}, permissionText: {marginTop: 2, color: colors.textSecondary, fontSize: 11},
+  searchBox: {height: 46, marginHorizontal: 20, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', columnGap: 9, borderRadius: 14, backgroundColor: colors.inputBackground},
+  input: {flex: 1, color: colors.text, fontSize: 14},
+  filters: {marginHorizontal: 20, marginTop: 12, flexDirection: 'row', columnGap: 8},
+  filter: {paddingHorizontal: 15, paddingVertical: 8, borderRadius: 18, backgroundColor: colors.inputBackground},
+  filterActive: {backgroundColor: colors.primaryButton}, filterText: {color: colors.textSecondary, fontSize: 12, fontWeight: '600'}, filterTextActive: {color: '#FFFFFF'},
+  list: {paddingHorizontal: 20, paddingTop: 14, paddingBottom: 28, rowGap: 10},
+  empty: {paddingVertical: 36, color: colors.textSecondary, textAlign: 'center'},
+  appCard: {padding: 13, flexDirection: 'row', alignItems: 'center', columnGap: 11, borderWidth: 1, borderColor: colors.border, borderRadius: 17, backgroundColor: colors.surface},
+  appIcon: {width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: colors.surfaceSoft},
+  appInfo: {flex: 1}, appName: {color: colors.text, fontSize: 14, fontWeight: '700'}, packageName: {marginTop: 2, color: colors.textSecondary, fontSize: 10},
+  usage: {marginTop: 4, color: colors.primaryButton, fontSize: 11, fontWeight: '600'}, exceeded: {color: colors.error},
+  selectButton: {paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colors.primaryButton, borderRadius: 16}, selectButtonActive: {backgroundColor: colors.primaryButton},
+  selectText: {color: colors.primaryButton, fontSize: 11, fontWeight: '700'}, selectTextActive: {color: '#FFFFFF'},
 });

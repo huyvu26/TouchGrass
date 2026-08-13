@@ -1,248 +1,215 @@
-import React, {useState} from 'react';
+import React, {useCallback, useState} from 'react';
 import {
+  Alert,
+  Linking,
+  PermissionsAndroid,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import {
-  BarChart2,
-  Camera,
-  Check,
-  ChevronRight,
-  MapPin,
-  Shield,
-} from 'lucide-react-native';
+import {BarChart2, Camera, ChevronRight, MapPin, Shield} from 'lucide-react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {useFocusEffect} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
+import {VisionCamera} from 'react-native-vision-camera';
 
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
 import {markOnboardingComplete} from '../../storage/authStorage';
+import {accessibilityMonitor} from '../../native/accessibilityMonitor';
+import {deviceSettings} from '../../native/deviceSettings';
+import {
+  isUsageAccessGranted,
+  openUsageAccessSettings,
+} from '../../services/usageStatsService';
 
-type Props = NativeStackScreenProps<
-  AuthStackParamList,
-  'Permission'
->;
+type Props = NativeStackScreenProps<AuthStackParamList, 'Permission'>;
+type PermissionKey = 'camera' | 'location' | 'usage' | 'accessibility';
+type Status = 'unknown' | 'notGranted' | 'granted' | 'denied' | 'settings' | 'unavailable';
 
-const PERMISSIONS = [
-  {
-    key: 'accessibility',
-    icon: Shield,
-    label: 'Hỗ trợ Accessibility',
-    description:
-      'Prototype: chưa có Accessibility Service để khóa ứng dụng thật',
-    required: false,
-  },
-  {
-    key: 'usage',
-    icon: BarChart2,
-    label: 'Thống kê sử dụng',
-    description:
-      'Prototype: chưa đọc UsageStats từ thiết bị',
-    required: false,
-  },
-  {
-    key: 'location',
-    icon: MapPin,
-    label: 'Vị trí GPS',
-    description:
-      'Xác nhận bạn đang ở ngoài trời khi hoàn thành nhiệm vụ',
-    required: false,
-  },
-  {
-    key: 'camera',
-    icon: Camera,
+const INFO: Record<PermissionKey, {label: string; description: string; Icon: typeof Shield}> = {
+  camera: {
     label: 'Máy ảnh',
-    description:
-      'Chụp ảnh cây xanh và thiên nhiên để hoàn thành nhiệm vụ',
-    required: false,
+    description: 'Chỉ dùng ảnh chụp trực tiếp khi bạn thực hiện nhiệm vụ ảnh.',
+    Icon: Camera,
   },
-] as const;
+  location: {
+    label: 'Vị trí chính xác',
+    description: 'Chỉ thu thập GPS trong lúc nhiệm vụ đi bộ đang chạy.',
+    Icon: MapPin,
+  },
+  usage: {
+    label: 'Quyền truy cập sử dụng',
+    description: 'Chỉ đọc thời lượng sử dụng ứng dụng trên thiết bị cho App Control.',
+    Icon: BarChart2,
+  },
+  accessibility: {
+    label: 'Theo dõi ứng dụng phía trước',
+    description: 'Chỉ phát hiện package foreground; không đọc mật khẩu hay nội dung ứng dụng.',
+    Icon: Shield,
+  },
+};
 
-type PermissionKey = (typeof PERMISSIONS)[number]['key'];
-type PermissionState = Record<PermissionKey, boolean>;
-
-interface ToggleProps {
-  enabled: boolean;
-  onToggle: () => void;
-  accessibilityLabel: string;
-}
-
-function PermissionToggle({
-  enabled,
-  onToggle,
-  accessibilityLabel,
-}: ToggleProps) {
-  return (
-    <Pressable
-      accessibilityRole="switch"
-      accessibilityState={{checked: enabled}}
-      accessibilityLabel={accessibilityLabel}
-      style={[
-        styles.toggle,
-        enabled && styles.toggleEnabled,
-      ]}
-      hitSlop={6}
-      onPress={onToggle}>
-      <View
-        style={[
-          styles.toggleThumb,
-          enabled && styles.toggleThumbEnabled,
-        ]}
-      />
-    </Pressable>
-  );
-}
+const STATUS_LABEL: Record<Status, string> = {
+  unknown: 'Đang kiểm tra…',
+  notGranted: 'Chưa cấp',
+  granted: 'Đã cấp',
+  denied: 'Bị từ chối',
+  settings: 'Cần mở Cài đặt',
+  unavailable: 'Không khả dụng',
+};
 
 export function PermissionScreen({navigation}: Props) {
-  const [granted, setGranted] = useState<PermissionState>({
-    accessibility: false,
-    usage: true,
-    location: true,
-    camera: false,
+  const [statuses, setStatuses] = useState<Record<PermissionKey, Status>>({
+    camera: 'unknown',
+    location: 'unknown',
+    usage: 'unknown',
+    accessibility: 'unknown',
   });
+  const [locationServices, setLocationServices] = useState<boolean | null>(null);
 
-  const allRequiredGranted = PERMISSIONS.filter(
-    permission => permission.required,
-  ).every(permission => granted[permission.key]);
+  const refresh = useCallback(async () => {
+    const next: Record<PermissionKey, Status> = {
+      camera: 'unavailable',
+      location: 'unavailable',
+      usage: 'unavailable',
+      accessibility: 'unavailable',
+    };
+    try {
+      const camera = VisionCamera.cameraPermissionStatus;
+      next.camera = camera === 'authorized' ? 'granted' : camera === 'denied' || camera === 'restricted' ? 'settings' : 'notGranted';
+    } catch {}
+    try {
+      const location = await deviceSettings.getFineLocationPermissionStatus();
+      next.location = location === 'granted'
+        ? 'granted'
+        : location === 'blocked'
+          ? 'settings'
+          : location === 'denied'
+            ? 'denied'
+            : 'notGranted';
+      setLocationServices(await deviceSettings.isLocationServicesEnabled());
+    } catch {
+      setLocationServices(null);
+    }
+    try {
+      next.usage = (await isUsageAccessGranted()) ? 'granted' : 'notGranted';
+    } catch {}
+    try {
+      next.accessibility = (await accessibilityMonitor.isEnabled()) ? 'granted' : 'notGranted';
+    } catch {}
+    setStatuses(next);
+  }, []);
 
-  function togglePermission(key: PermissionKey) {
-    setGranted(current => ({
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
+
+  async function requestCamera() {
+    if (statuses.camera === 'settings') return Linking.openSettings();
+    try {
+      const granted = await VisionCamera.requestCameraPermission();
+      setStatuses(current => ({...current, camera: granted ? 'granted' : 'settings'}));
+    } catch {
+      setStatuses(current => ({...current, camera: 'unavailable'}));
+    }
+  }
+
+  async function requestLocation() {
+    if (statuses.location === 'settings') return Linking.openSettings();
+    const result = await PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+    ]);
+    await deviceSettings.markFineLocationPermissionRequested();
+    const fine = result[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION];
+    setStatuses(current => ({
       ...current,
-      [key]: !current[key],
+      location:
+        fine === PermissionsAndroid.RESULTS.GRANTED
+          ? 'granted'
+          : fine === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN
+            ? 'settings'
+            : 'denied',
     }));
+    setLocationServices(await deviceSettings.isLocationServicesEnabled());
+  }
+
+  async function handlePermission(key: PermissionKey) {
+    if (key === 'camera') return requestCamera();
+    if (key === 'location') return requestLocation();
+    if (key === 'usage') return openUsageAccessSettings();
+    return accessibilityMonitor.openSettings();
   }
 
   async function continueToHome() {
+    const missing = Object.values(statuses).filter(value => value !== 'granted').length;
+    if (missing > 0) {
+      Alert.alert(
+        'Một số chức năng chưa sẵn sàng',
+        'Bạn vẫn có thể tiếp tục. Camera/GPS sẽ được hỏi lại khi làm nhiệm vụ; Usage Access và Accessibility chỉ cần cho App Control.',
+        [{text: 'Ở lại'}, {text: 'Vẫn tiếp tục', onPress: finish}],
+      );
+      return;
+    }
+    await finish();
+  }
+
+  async function finish() {
     await markOnboardingComplete();
     navigation.reset({index: 0, routes: [{name: 'Home'}]});
   }
 
   return (
-    <SafeAreaView
-      style={styles.screen}
-      edges={['top', 'bottom']}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <View style={styles.headerIcon}>
-            <Shield
-              size={36}
-              color={colors.primaryButton}
-            />
-          </View>
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerIcon}><Shield size={34} color={colors.primaryButton} /></View>
+        <Text style={styles.title}>Thiết lập quyền</Text>
+        <Text style={styles.subtitle}>Các trạng thái dưới đây được đọc trực tiếp từ Android và tự cập nhật khi bạn quay lại màn hình.</Text>
 
-          <Text style={styles.title}>Cấp quyền</Text>
-          <Text style={styles.subtitle}>
-            Quyền Camera và GPS sẽ được Android hỏi khi bạn bắt đầu nhiệm vụ.
-            App Control hiện là bản prototype và chưa yêu cầu quyền hệ thống.
-          </Text>
-        </View>
-
-        <View style={styles.permissionList}>
-          {PERMISSIONS.map(permission => {
-            const Icon = permission.icon;
-            const enabled = granted[permission.key];
-
-            return (
-              <View
-                key={permission.key}
-                style={[
-                  styles.permissionCard,
-                  enabled && styles.permissionCardEnabled,
-                ]}>
-                <View style={styles.permissionMainRow}>
-                  <View
-                    style={[
-                      styles.permissionIcon,
-                      enabled && styles.permissionIconEnabled,
-                    ]}>
-                    <Icon
-                      size={22}
-                      color={
-                        enabled
-                          ? colors.primaryButton
-                          : colors.textSecondary
-                      }
-                    />
-                  </View>
-
-                  <View style={styles.permissionContent}>
-                    <Text style={styles.permissionLabel}>
-                      {permission.label}
-                      {permission.required ? (
-                        <Text style={styles.requiredMark}> *</Text>
-                      ) : null}
-                    </Text>
-                    <Text style={styles.permissionDescription}>
-                      {permission.description}
-                    </Text>
-                  </View>
-
-                  <PermissionToggle
-                    enabled={enabled}
-                    accessibilityLabel={`Cấp quyền ${permission.label}`}
-                    onToggle={() =>
-                      togglePermission(permission.key)
-                    }
-                  />
+        {(Object.keys(INFO) as PermissionKey[]).map(key => {
+          const {Icon, label, description} = INFO[key];
+          const status = statuses[key];
+          const granted = status === 'granted';
+          return (
+            <View key={key} style={[styles.card, granted && styles.cardGranted]}>
+              <View style={styles.row}>
+                <View style={styles.icon}><Icon size={21} color={granted ? colors.primaryButton : colors.textSecondary} /></View>
+                <View style={styles.info}>
+                  <Text style={styles.label}>{label}</Text>
+                  <Text style={styles.description}>{description}</Text>
+                  {key === 'location' && statuses.location === 'granted' && locationServices === false ? (
+                    <Text style={styles.warning}>Dịch vụ vị trí/GPS đang tắt.</Text>
+                  ) : null}
                 </View>
-
-                {enabled ? (
-                  <View style={styles.grantedRow}>
-                    <Check
-                      size={14}
-                      color={colors.primaryButton}
-                      strokeWidth={2.5}
-                    />
-                    <Text style={styles.grantedText}>
-                      Đã cấp quyền
-                    </Text>
-                  </View>
+              </View>
+              <View style={styles.actionRow}>
+                <Text style={[styles.status, granted && styles.statusGranted]}>{STATUS_LABEL[status]}</Text>
+                {!granted ? (
+                  <Pressable style={styles.outlineButton} onPress={() => handlePermission(key)}>
+                    <Text style={styles.outlineText}>{status === 'settings' ? 'Mở App Settings' : key === 'usage' || key === 'accessibility' ? 'Mở cài đặt' : 'Cấp quyền'}</Text>
+                  </Pressable>
+                ) : key === 'location' && locationServices === false ? (
+                  <Pressable style={styles.outlineButton} onPress={deviceSettings.openLocationSettings}>
+                    <Text style={styles.outlineText}>Bật GPS</Text>
+                  </Pressable>
                 ) : null}
               </View>
-            );
-          })}
-        </View>
+            </View>
+          );
+        })}
 
-        <View style={styles.privacyCard}>
-          <Shield
-            size={17}
-            color={colors.primaryButton}
-          />
-          <Text style={styles.privacyText}>
-            Chúng tôi cam kết{' '}
-            <Text style={styles.privacyStrong}>
-              bảo mật dữ liệu
-            </Text>{' '}
-            của bạn. Dữ liệu không bao giờ được bán cho bên thứ
-            ba.
-          </Text>
+        <View style={styles.privacy}>
+          <Shield size={17} color={colors.primaryButton} />
+          <Text style={styles.privacyText}>Dữ liệu App Control được lưu local. Touch Grass không đọc nội dung cửa sổ, thông báo, mật khẩu hay dữ liệu nhập và không tự động khóa ứng dụng trong giai đoạn này.</Text>
         </View>
-
-        <Pressable
-          accessibilityRole="button"
-          disabled={!allRequiredGranted}
-          style={({pressed}) => [
-            styles.primaryButton,
-            !allRequiredGranted && styles.disabledButton,
-            pressed && allRequiredGranted && styles.pressed,
-          ]}
-          onPress={continueToHome}>
-          <Text style={styles.primaryButtonText}>
-            {allRequiredGranted
-              ? 'Tiếp tục'
-              : 'Cần cấp quyền bắt buộc'}
-          </Text>
-          {allRequiredGranted ? (
-            <ChevronRight
-              size={19}
-              color="#FFFFFF"
-            />
-          ) : null}
+        <Pressable style={styles.primaryButton} onPress={continueToHome}>
+          <Text style={styles.primaryText}>Hoàn tất thiết lập</Text>
+          <ChevronRight size={19} color="#FFFFFF" />
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -250,182 +217,26 @@ export function PermissionScreen({navigation}: Props) {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 24,
-  },
-  header: {
-    marginBottom: 28,
-    alignItems: 'center',
-  },
-  headerIcon: {
-    width: 72,
-    height: 72,
-    marginBottom: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 24,
-    backgroundColor: colors.surfaceSoft,
-  },
-  title: {
-    marginBottom: 8,
-    color: colors.primary,
-    fontSize: 24,
-    lineHeight: 32,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  subtitle: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 22,
-    textAlign: 'center',
-  },
-  requiredMark: {
-    color: colors.error,
-  },
-  permissionList: {
-    marginBottom: 24,
-    rowGap: 12,
-  },
-  permissionCard: {
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-  },
-  permissionCardEnabled: {
-    borderColor: 'rgba(36, 107, 5, 0.27)',
-    shadowColor: colors.primaryButton,
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  permissionMainRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    columnGap: 14,
-  },
-  permissionIcon: {
-    width: 48,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 16,
-    backgroundColor: colors.inputBackground,
-  },
-  permissionIconEnabled: {
-    backgroundColor: colors.surfaceSoft,
-  },
-  permissionContent: {
-    flex: 1,
-  },
-  permissionLabel: {
-    marginBottom: 3,
-    color: colors.text,
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '700',
-  },
-  permissionDescription: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  toggle: {
-    width: 52,
-    height: 30,
-    padding: 3,
-    justifyContent: 'center',
-    borderRadius: 15,
-    backgroundColor: '#C8D4C0',
-  },
-  toggleEnabled: {
-    backgroundColor: colors.primaryButton,
-  },
-  toggleThumb: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  toggleThumbEnabled: {
-    alignSelf: 'flex-end',
-  },
-  grantedRow: {
-    marginTop: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    columnGap: 8,
-    borderRadius: 10,
-    backgroundColor: colors.surfaceSoft,
-  },
-  grantedText: {
-    color: colors.primaryButton,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  privacyCard: {
-    marginBottom: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    columnGap: 10,
-    borderRadius: 14,
-    backgroundColor: colors.surfaceSoft,
-  },
-  privacyText: {
-    flex: 1,
-    color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  privacyStrong: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  primaryButton: {
-    minHeight: 52,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    columnGap: 8,
-    borderRadius: 26,
-    backgroundColor: colors.primaryButton,
-    shadowColor: colors.primaryButton,
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  disabledButton: {
-    opacity: 0.45,
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  pressed: {
-    opacity: 0.78,
-  },
+  screen: {flex: 1, backgroundColor: colors.background},
+  content: {paddingHorizontal: 20, paddingTop: 18, paddingBottom: 28},
+  headerIcon: {width: 68, height: 68, alignSelf: 'center', alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.surfaceSoft},
+  title: {marginTop: 14, color: colors.primary, fontSize: 24, fontWeight: '800', textAlign: 'center'},
+  subtitle: {marginTop: 8, marginBottom: 22, color: colors.textSecondary, fontSize: 13, lineHeight: 20, textAlign: 'center'},
+  card: {marginBottom: 12, padding: 15, borderWidth: 1.5, borderColor: colors.border, borderRadius: 18, backgroundColor: colors.surface},
+  cardGranted: {borderColor: 'rgba(36,107,5,0.35)'},
+  row: {flexDirection: 'row', columnGap: 12},
+  icon: {width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.surfaceSoft},
+  info: {flex: 1},
+  label: {color: colors.text, fontSize: 15, fontWeight: '700'},
+  description: {marginTop: 3, color: colors.textSecondary, fontSize: 12, lineHeight: 17},
+  warning: {marginTop: 5, color: colors.error, fontSize: 12, fontWeight: '600'},
+  actionRow: {marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
+  status: {color: colors.textSecondary, fontSize: 12, fontWeight: '700'},
+  statusGranted: {color: colors.primaryButton},
+  outlineButton: {paddingHorizontal: 13, paddingVertical: 8, borderWidth: 1, borderColor: colors.primaryButton, borderRadius: 16},
+  outlineText: {color: colors.primaryButton, fontSize: 12, fontWeight: '700'},
+  privacy: {marginTop: 6, marginBottom: 20, padding: 14, flexDirection: 'row', alignItems: 'flex-start', columnGap: 10, borderRadius: 14, backgroundColor: colors.surfaceSoft},
+  privacyText: {flex: 1, color: colors.textSecondary, fontSize: 12, lineHeight: 18},
+  primaryButton: {height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8, borderRadius: 26, backgroundColor: colors.primaryButton},
+  primaryText: {color: '#FFFFFF', fontSize: 15, fontWeight: '700'},
 });

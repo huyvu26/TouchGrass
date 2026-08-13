@@ -9,6 +9,7 @@ export type AuthStackParamList = {
   Home: undefined;
   AppManagement: undefined;
   AppLimit: {
+    packageName: string;
     appName: string;
   };
   TaskHub: undefined;

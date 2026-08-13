@@ -32,6 +32,7 @@ import Svg, {Circle, Rect} from 'react-native-svg';
 import {ScreenHeader} from '../../components/ScreenHeader';
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
+import {deviceSettings} from '../../native/deviceSettings';
 import {
   completeUserTask,
   finishGpsTracking,
@@ -73,6 +74,7 @@ async function requestLocationPermission(): Promise<PermissionResult> {
     PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
     PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
   ]);
+  await deviceSettings.markFineLocationPermissionRequested();
   const fine = results[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION];
 
   if (fine === PermissionsAndroid.RESULTS.GRANTED) {
@@ -92,7 +94,10 @@ async function requestLocationPermission(): Promise<PermissionResult> {
   return 'denied';
 }
 
-function ensureLocationServicesEnabled(): Promise<void> {
+async function ensureLocationServicesEnabled(): Promise<void> {
+  if (!(await deviceSettings.isLocationServicesEnabled())) {
+    throw new Error('LOCATION_SERVICES_DISABLED');
+  }
   return new Promise((resolve, reject) => {
     Geolocation.getCurrentPosition(
       () => resolve(),
@@ -286,7 +291,7 @@ export function GPSTrackerScreen({navigation, route}: Props) {
 
     if (Platform.OS === 'android') {
       try {
-        await Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS');
+        await deviceSettings.openLocationSettings();
         return;
       } catch {
         await Linking.openSettings();
