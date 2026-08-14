@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   login as loginUser,
 } from '../../services/authService';
@@ -31,6 +31,8 @@ import Svg, { Path } from 'react-native-svg';
 import { colors } from '../../constants/colors';
 import type { AuthStackParamList } from '../../navigation/types';
 import {useAuth} from '../../auth/AuthContext';
+import {getApiOrigin, saveApiOrigin} from '../../storage/apiConfigStorage';
+import {signInWithGoogle} from '../../services/googleAuthService';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
@@ -89,6 +91,11 @@ export function LoginScreen({ navigation }: Props) {
   const [errors, setErrors] = useState<LoginErrors>({});
   const [isSubmitting, setIsSubmitting] =
     useState(false);
+  const [apiOrigin, setApiOrigin] = useState('http://10.0.2.2:3000');
+
+  useEffect(() => {
+    getApiOrigin().then(setApiOrigin);
+  }, []);
 
   function clearError(field: keyof LoginErrors) {
     setErrors(current => ({
@@ -121,6 +128,7 @@ export function LoginScreen({ navigation }: Props) {
     setIsSubmitting(true);
 
     try {
+      await saveApiOrigin(apiOrigin);
       const authResponse = await loginUser({
         email: email.toLowerCase().trim(),
         password,
@@ -159,11 +167,21 @@ export function LoginScreen({ navigation }: Props) {
     }
   }
 
-  function showComingSoon(title: string) {
-    Alert.alert(
-      title,
-      'Tính năng này sẽ được kết nối trong phiên bản sau.',
-    );
+  async function handleGoogleLogin() {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await saveApiOrigin(apiOrigin);
+      const authResponse = await signInWithGoogle();
+      if (!authResponse) return;
+      await saveAccessToken(authResponse.accessToken);
+      setUser(authResponse.user);
+      navigation.reset({index: 0, routes: [{name: 'Permission'}]});
+    } catch (error) {
+      Alert.alert('Không thể đăng nhập Google', error instanceof Error ? error.message : 'Vui lòng thử lại.');
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -193,6 +211,23 @@ export function LoginScreen({ navigation }: Props) {
           </View>
 
           <View style={styles.form}>
+            <View style={styles.field}>
+              <Text style={styles.label}>Máy chủ backend</Text>
+              <TextInput
+                style={styles.input}
+                value={apiOrigin}
+                placeholder="http://192.168.1.10:3000"
+                placeholderTextColor={colors.placeholder}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                onChangeText={setApiOrigin}
+                onEndEditing={() => saveApiOrigin(apiOrigin).catch(() => undefined)}
+              />
+              <Text style={styles.serverHint}>
+                Emulator: 10.0.2.2 · Điện thoại thật: IP LAN của máy chạy backend
+              </Text>
+            </View>
             <View style={styles.field}>
               <Text
                 style={[
@@ -334,7 +369,7 @@ export function LoginScreen({ navigation }: Props) {
             <Pressable
               accessibilityRole="button"
               hitSlop={8}
-              onPress={() => showComingSoon('Quên mật khẩu')}>
+              onPress={() => navigation.navigate('ForgotPassword')}>
               <Text style={styles.forgotText}>
                 Quên mật khẩu?
               </Text>
@@ -380,7 +415,7 @@ export function LoginScreen({ navigation }: Props) {
                 styles.socialButton,
                 pressed && styles.pressed,
               ]}
-              onPress={() => showComingSoon('Google')}>
+              onPress={handleGoogleLogin}>
               <GoogleLogo />
               <Text style={styles.socialText}>
                 Tiếp tục với Google
@@ -393,7 +428,10 @@ export function LoginScreen({ navigation }: Props) {
                 styles.socialButton,
                 pressed && styles.pressed,
               ]}
-              onPress={() => showComingSoon('Apple')}>
+              onPress={() => Alert.alert(
+                'Apple Sign In chưa sẵn sàng',
+                'Frontend đang chờ callback URL và mã trao đổi một lần từ backend. Nút này không giả lập đăng nhập.',
+              )}>
               <AppleLogo />
               <Text style={styles.socialText}>
                 Tiếp tục với Apple
@@ -476,6 +514,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontWeight: '600',
+  },
+  serverHint: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    lineHeight: 16,
   },
   errorLabel: {
     color: colors.error,

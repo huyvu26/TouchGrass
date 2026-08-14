@@ -30,6 +30,10 @@ export async function saveAppLimitRule(rule: AppLimitRule): Promise<void> {
   await AsyncStorage.setItem(APP_LIMIT_RULES_KEY, JSON.stringify(next));
 }
 
+export async function replaceAppLimitRules(rules: AppLimitRule[]): Promise<void> {
+  await AsyncStorage.setItem(APP_LIMIT_RULES_KEY, JSON.stringify(rules));
+}
+
 export async function removeAppLimitRule(packageName: string): Promise<void> {
   const rules = await getAppLimitRules();
   await AsyncStorage.setItem(

@@ -23,6 +23,15 @@ export interface AuthUser {
   role: string;
 }
 
+export interface ForgotPasswordResponse {
+  message: string;
+  expiresInSeconds?: number;
+}
+
+export interface ResetPasswordResponse {
+  message: string;
+}
+
 export interface AuthResponse {
   accessToken: string;
   user: AuthUser;

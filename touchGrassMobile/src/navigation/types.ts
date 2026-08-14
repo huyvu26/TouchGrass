@@ -5,6 +5,10 @@ export type AuthStackParamList = {
   Onboarding: undefined;
   Login: undefined;
   Register: undefined;
+  ForgotPassword: undefined;
+  ResetPassword: {
+    email: string;
+  };
   Permission: undefined;
   Home: undefined;
   AppManagement: undefined;

@@ -16,10 +16,12 @@ import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
 import {
   getAppLimitRules,
-  removeAppLimitRule,
-  saveAppLimitRule,
   type AppLimitRule,
 } from '../../storage/appControlStorage';
+import {
+  removeAndSyncAppControlRule,
+  saveAndSyncAppControlRule,
+} from '../../services/appControlService';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'AppLimit'>;
 const DAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -72,8 +74,12 @@ export function AppLimitScreen({navigation, route}: Props) {
       startTime,
       endTime,
     };
-    await saveAppLimitRule(rule);
-    Alert.alert('Đã lưu', 'Quy tắc được lưu trên thiết bị. Touch Grass hiện chỉ cảnh báo, chưa tự động khóa ứng dụng.');
+    try {
+      await saveAndSyncAppControlRule(rule);
+      Alert.alert('Đã lưu', 'Quy tắc đã được lưu trên backend và đồng bộ xuống Android.');
+    } catch (error) {
+      Alert.alert('Không thể lưu giới hạn', error instanceof Error ? error.message : 'Vui lòng thử lại.');
+    }
   }
 
   function remove() {
@@ -82,7 +88,8 @@ export function AppLimitScreen({navigation, route}: Props) {
       {
         text: 'Xóa',
         style: 'destructive',
-        onPress: () => removeAppLimitRule(packageName).then(() => navigation.goBack()),
+        onPress: () => removeAndSyncAppControlRule(packageName)
+          .then(() => navigation.goBack()),
       },
     ]);
   }
@@ -97,7 +104,7 @@ export function AppLimitScreen({navigation, route}: Props) {
 
         <View style={styles.prototype}>
           <Shield size={17} color={colors.primaryButton} />
-          <Text style={styles.prototypeText}>Quy tắc thật được lưu local và đối chiếu với UsageStats. Trong giai đoạn này hệ thống chỉ cảnh báo, không tự động khóa app.</Text>
+          <Text style={styles.prototypeText}>Android dùng UsageStats và Accessibility để khóa đúng ứng dụng bạn đã chọn khi vượt giới hạn.</Text>
         </View>
 
         <View style={styles.identity}>

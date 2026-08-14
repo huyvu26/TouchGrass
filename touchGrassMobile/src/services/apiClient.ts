@@ -1,4 +1,4 @@
-import {API_BASE_URL} from '../config/api';
+import {getApiBaseUrl} from '../storage/apiConfigStorage';
 import {
   getAccessToken,
   removeAccessToken,
@@ -84,7 +84,7 @@ export async function apiRequest<T>(
 
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetch(`${await getApiBaseUrl()}${path}`, {
       method: options.method ?? 'GET',
       headers,
       body:

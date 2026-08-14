@@ -4,6 +4,17 @@ import {
 } from '../storage/appControlStorage';
 import {getTodayUsage} from './usageStatsService';
 import {isProtectedPackage} from './protectedPackages';
+import {appControlNative} from '../native/appControl';
+import {
+  deleteAppControlRuleByPackage,
+  getAppControlRules,
+  upsertAppControlRule,
+} from './appControlApiService';
+import {
+  removeAppLimitRule,
+  replaceAppLimitRules,
+  saveAppLimitRule,
+} from '../storage/appControlStorage';
 
 export interface AppLimitEvaluation {
   shouldWarn: boolean;
@@ -32,3 +43,43 @@ export async function evaluateAppLimit(packageName: string): Promise<AppLimitEva
     reason: usedMinutes >= rule.dailyLimitMinutes ? 'LIMIT_REACHED' : 'UNDER_LIMIT',
   };
 }
+
+export async function syncAppControlRules(): Promise<void> {
+  await appControlNative.syncRules(await getAppLimitRules());
+}
+
+export async function refreshAppControlRulesFromBackend(): Promise<AppLimitRule[]> {
+  const response = await getAppControlRules();
+  const rules = response.items.map(({id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...rule}) => rule);
+  await replaceAppLimitRules(rules);
+  await appControlNative.syncRules(rules);
+  return rules;
+}
+
+export async function saveAndSyncAppControlRule(rule: AppLimitRule): Promise<void> {
+  const remote = await upsertAppControlRule(rule);
+  const stored: AppLimitRule = {
+    packageName: remote.packageName,
+    appName: remote.appName,
+    enabled: remote.enabled,
+    dailyLimitMinutes: remote.dailyLimitMinutes,
+    activeDays: remote.activeDays,
+    startTime: remote.startTime,
+    endTime: remote.endTime,
+  };
+  await saveAppLimitRule(stored);
+  await syncAppControlRules();
+}
+
+export async function removeAndSyncAppControlRule(packageName: string): Promise<void> {
+  await deleteAppControlRuleByPackage(packageName);
+  await removeAppLimitRule(packageName);
+  await syncAppControlRules();
+}
+
+export const isAppControlEnabled = appControlNative.isEnabled;
+export const setAppControlEnabled = appControlNative.setEnabled;
+export const grantPendingAppTemporaryUnlock = appControlNative.grantTemporaryUnlock;
+export const getPendingLockedApp = appControlNative.getPendingLockedApp;
+export const setTemporaryUnlockUntil = appControlNative.setTemporaryUnlockUntil;
+export const emergencyDisableAppControl = appControlNative.emergencyDisable;

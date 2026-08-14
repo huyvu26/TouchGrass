@@ -6,4 +6,12 @@
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
     </style>
 
+    <style name="AppLockTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#123D13</item>
+        <item name="android:navigationBarColor">#071E08</item>
+        <item name="android:windowBackground">#123D13</item>
+    </style>
+
 </resources>

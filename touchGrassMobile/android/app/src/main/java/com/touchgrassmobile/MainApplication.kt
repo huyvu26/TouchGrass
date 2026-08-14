@@ -20,6 +20,7 @@ class MainApplication : Application(), ReactApplication {
           add(UsageStatsPackage())
           add(AccessibilityMonitorPackage())
           add(DeviceSettingsPackage())
+          add(AppControlPackage())
         },
     )
   }

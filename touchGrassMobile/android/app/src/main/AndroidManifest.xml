@@ -37,6 +37,13 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
       </activity>
+      <activity
+        android:name=".AppLockActivity"
+        android:excludeFromRecents="true"
+        android:exported="false"
+        android:launchMode="singleTask"
+        android:noHistory="true"
+        android:theme="@style/AppLockTheme" />
       <service
         android:name=".AppMonitorAccessibilityService"
         android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"

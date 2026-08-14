@@ -46,8 +46,8 @@ const INFO: Record<PermissionKey, {label: string; description: string; Icon: typ
     Icon: BarChart2,
   },
   accessibility: {
-    label: 'Theo dõi ứng dụng phía trước',
-    description: 'Chỉ phát hiện package foreground; không đọc mật khẩu hay nội dung ứng dụng.',
+    label: 'Phát hiện ứng dụng đang mở',
+    description: 'Quyền tùy chọn cho App Control: chỉ đọc tên package đang ở phía trước để áp dụng giới hạn; không đọc mật khẩu hay nội dung.',
     Icon: Shield,
   },
 };

@@ -14,6 +14,7 @@ import {useFocusEffect} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
 import {colors} from '../../constants/colors';
+import {ToggleSwitch} from '../../components/ToggleSwitch';
 import type {AuthStackParamList} from '../../navigation/types';
 import type {AppInfo, AppUsageInfo} from '../../native/usageStats';
 import {
@@ -24,10 +25,17 @@ import {
 } from '../../services/usageStatsService';
 import {
   getAppLimitRules,
-  removeAppLimitRule,
-  saveAppLimitRule,
   type AppLimitRule,
 } from '../../storage/appControlStorage';
+import {accessibilityMonitor} from '../../native/accessibilityMonitor';
+import {
+  isAppControlEnabled,
+  refreshAppControlRulesFromBackend,
+  removeAndSyncAppControlRule,
+  saveAndSyncAppControlRule,
+  setAppControlEnabled,
+  syncAppControlRules,
+} from '../../services/appControlService';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'AppManagement'>;
 type FilterKey = 'selected' | 'all';
@@ -37,6 +45,8 @@ export function AppManagementScreen({navigation}: Props) {
   const [rules, setRules] = useState<AppLimitRule[]>([]);
   const [usage, setUsage] = useState<AppUsageInfo[]>([]);
   const [hasUsageAccess, setHasUsageAccess] = useState(false);
+  const [hasAccessibility, setHasAccessibility] = useState(false);
+  const [controlEnabled, setControlEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterKey>('selected');
@@ -44,22 +54,58 @@ export function AppManagementScreen({navigation}: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const granted = await isUsageAccessGranted();
+      const [granted, accessibility, enabled] = await Promise.all([
+        isUsageAccessGranted(),
+        accessibilityMonitor.isEnabled(),
+        isAppControlEnabled(),
+      ]);
       setHasUsageAccess(granted);
+      setHasAccessibility(accessibility);
+      setControlEnabled(enabled);
       const [installed, storedRules, todayUsage] = await Promise.all([
         getSelectableApps(),
-        getAppLimitRules(),
+        refreshAppControlRulesFromBackend().catch(() => getAppLimitRules()),
         granted ? getTodayUsage() : Promise.resolve([]),
       ]);
       setApps(installed);
       setRules(storedRules);
       setUsage(todayUsage);
+      await syncAppControlRules();
     } catch (error) {
       Alert.alert('Không thể đọc ứng dụng', error instanceof Error ? error.message : 'Native module không khả dụng.');
     } finally {
       setLoading(false);
     }
   }, []);
+
+  async function toggleAppControl() {
+    if (controlEnabled) {
+      await setAppControlEnabled(false);
+      setControlEnabled(false);
+      return;
+    }
+    if (!hasUsageAccess) {
+      Alert.alert('Cần Usage Access', 'Hãy cấp quyền đọc thời lượng sử dụng trước.', [
+        {text: 'Hủy', style: 'cancel'},
+        {text: 'Mở cài đặt', onPress: openUsageAccessSettings},
+      ]);
+      return;
+    }
+    if (!hasAccessibility) {
+      Alert.alert('Cần Accessibility', 'Hãy bật dịch vụ “Theo dõi ứng dụng Touch Grass” để phát hiện app đang mở.', [
+        {text: 'Hủy', style: 'cancel'},
+        {text: 'Mở cài đặt', onPress: accessibilityMonitor.openSettings},
+      ]);
+      return;
+    }
+    if (rules.length === 0) {
+      Alert.alert('Chưa chọn ứng dụng', 'Hãy chọn ít nhất một ứng dụng trước khi bật App Control.');
+      return;
+    }
+    await syncAppControlRules();
+    await setAppControlEnabled(true);
+    setControlEnabled(true);
+  }
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -86,18 +132,22 @@ export function AppManagementScreen({navigation}: Props) {
     }
     const existing = ruleByPackage.get(app.packageName);
     if (existing) {
-      await removeAppLimitRule(app.packageName);
-      await load();
+      try {
+        await removeAndSyncAppControlRule(app.packageName);
+        await load();
+      } catch (error) {
+        Alert.alert('Không thể bỏ giới hạn', error instanceof Error ? error.message : 'Vui lòng thử lại.');
+      }
       return;
     }
     Alert.alert(
       'Xác nhận chọn ứng dụng',
-      `Chỉ thêm ${app.appName} nếu bạn thực sự muốn theo dõi giới hạn của ứng dụng này. Touch Grass hiện chưa tự động khóa ứng dụng.`,
+      `Chỉ thêm ${app.appName} nếu bạn thực sự muốn Touch Grass khóa ứng dụng này khi vượt giới hạn.`,
       [
         {text: 'Hủy', style: 'cancel'},
         {
           text: 'Chọn ứng dụng',
-          onPress: () => saveAppLimitRule({
+          onPress: () => saveAndSyncAppControlRule({
             packageName: app.packageName,
             appName: app.appName,
             enabled: true,
@@ -105,7 +155,10 @@ export function AppManagementScreen({navigation}: Props) {
             activeDays: [0, 1, 2, 3, 4, 5, 6],
             startTime: '00:00',
             endTime: '23:59',
-          }).then(load),
+          }).then(load).catch(error => Alert.alert(
+            'Không thể thêm giới hạn',
+            error instanceof Error ? error.message : 'Vui lòng thử lại.',
+          )),
         },
       ],
     );
@@ -126,7 +179,17 @@ export function AppManagementScreen({navigation}: Props) {
 
       <View style={styles.banner}>
         <ShieldAlert size={17} color={colors.primaryButton} />
-        <Text style={styles.bannerText}>Giai đoạn an toàn: chỉ đọc thời lượng và cảnh báo bên trong Touch Grass. Ứng dụng chưa tự động khóa app khác.</Text>
+        <Text style={styles.bannerText}>App Control chỉ khóa ứng dụng bạn chủ động chọn. Settings, launcher, Phone, SMS và ứng dụng hệ thống luôn được bảo vệ.</Text>
+      </View>
+
+      <View style={styles.controlCard}>
+        <View style={styles.permissionInfo}>
+          <Text style={styles.controlTitle}>Khóa ứng dụng đã chọn</Text>
+          <Text style={styles.permissionText}>
+            {controlEnabled ? 'Đang hoạt động' : 'Đang tắt'} · Usage {hasUsageAccess ? 'OK' : 'chưa cấp'} · Accessibility {hasAccessibility ? 'OK' : 'chưa bật'}
+          </Text>
+        </View>
+        <ToggleSwitch value={controlEnabled} onValueChange={toggleAppControl} />
       </View>
 
       {!hasUsageAccess ? (
@@ -191,6 +254,8 @@ const styles = StyleSheet.create({
   bannerText: {flex: 1, color: colors.textSecondary, fontSize: 12, lineHeight: 18},
   permissionCard: {marginHorizontal: 20, marginBottom: 12, padding: 14, flexDirection: 'row', alignItems: 'center', columnGap: 10, borderWidth: 1, borderColor: colors.error, borderRadius: 15, backgroundColor: colors.surface},
   permissionInfo: {flex: 1}, permissionTitle: {color: colors.error, fontSize: 13, fontWeight: '700'}, permissionText: {marginTop: 2, color: colors.textSecondary, fontSize: 11},
+  controlCard: {marginHorizontal: 20, marginBottom: 12, padding: 14, flexDirection: 'row', alignItems: 'center', columnGap: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 15, backgroundColor: colors.surface},
+  controlTitle: {color: colors.text, fontSize: 14, fontWeight: '700'},
   searchBox: {height: 46, marginHorizontal: 20, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', columnGap: 9, borderRadius: 14, backgroundColor: colors.inputBackground},
   input: {flex: 1, color: colors.text, fontSize: 14},
   filters: {marginHorizontal: 20, marginTop: 12, flexDirection: 'row', columnGap: 8},

@@ -31,6 +31,7 @@ import Svg, { Path } from 'react-native-svg';
 import { colors } from '../../constants/colors';
 import type { AuthStackParamList } from '../../navigation/types';
 import {useAuth} from '../../auth/AuthContext';
+import {signInWithGoogle} from '../../services/googleAuthService';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
@@ -277,11 +278,20 @@ export function RegisterScreen({ navigation }: Props) {
     }
   }
 
-  function showComingSoon(title: string) {
-    Alert.alert(
-      title,
-      'Tính năng này sẽ được kết nối trong phiên bản sau.',
-    );
+  async function handleGoogleLogin() {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const authResponse = await signInWithGoogle();
+      if (!authResponse) return;
+      await saveAccessToken(authResponse.accessToken);
+      setUser(authResponse.user);
+      navigation.reset({index: 0, routes: [{name: 'Permission'}]});
+    } catch (error) {
+      Alert.alert('Không thể đăng nhập Google', error instanceof Error ? error.message : 'Vui lòng thử lại.');
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -526,7 +536,7 @@ export function RegisterScreen({ navigation }: Props) {
                 styles.socialButton,
                 pressed && styles.pressed,
               ]}
-              onPress={() => showComingSoon('Google')}>
+              onPress={handleGoogleLogin}>
               <GoogleLogo />
               <Text style={styles.socialText}>
                 Tiếp tục với Google
@@ -539,7 +549,10 @@ export function RegisterScreen({ navigation }: Props) {
                 styles.socialButton,
                 pressed && styles.pressed,
               ]}
-              onPress={() => showComingSoon('Apple')}>
+              onPress={() => Alert.alert(
+                'Apple Sign In chưa sẵn sàng',
+                'Frontend đang chờ callback URL và mã trao đổi một lần từ backend. Nút này không giả lập đăng nhập.',
+              )}>
               <AppleLogo />
               <Text style={styles.socialText}>
                 Tiếp tục với Apple

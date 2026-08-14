@@ -15,6 +15,11 @@ import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
 import {claimUserTaskReward} from '../../services/userTaskService';
 import type {ClaimRewardResponse} from '../../types/userTask';
+import {
+  getPendingLockedApp,
+  setTemporaryUnlockUntil,
+} from '../../services/appControlService';
+import {createTemporaryUnlock} from '../../services/appControlApiService';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Reward'>;
 
@@ -29,7 +34,17 @@ export function RewardScreen({navigation, route}: Props) {
 
     setClaiming(true);
     try {
-      setClaim(await claimUserTaskReward(route.params.userTaskId));
+      const pendingApp = await getPendingLockedApp();
+      const result = await claimUserTaskReward(route.params.userTaskId);
+      if (pendingApp && result.reward.unlockMinutes > 0) {
+        const unlock = await createTemporaryUnlock(
+          pendingApp.packageName,
+          result.reward.unlockMinutes,
+          `reward-${route.params.userTaskId}-${pendingApp.packageName}`,
+        );
+        await setTemporaryUnlockUntil(pendingApp.packageName, unlock.expiresAt);
+      }
+      setClaim(result);
     } catch (error) {
       Alert.alert(
         'Không thể nhận phần thưởng',

@@ -5,6 +5,8 @@ import {AppLimitScreen} from '../screens/apps/AppLimitScreen';
 import {AppManagementScreen} from '../screens/apps/AppManagementScreen';
 import {LoginScreen} from '../screens/auth/LoginScreen';
 import {RegisterScreen} from '../screens/auth/RegisterScreen';
+import {ForgotPasswordScreen} from '../screens/auth/ForgotPasswordScreen';
+import {ResetPasswordScreen} from '../screens/auth/ResetPasswordScreen';
 import {HomeScreen} from '../screens/home/HomeScreen';
 import {AppLockScreen} from '../screens/lock/AppLockScreen';
 import {OnboardingScreen} from '../screens/onboarding/OnboardingScreen';
@@ -56,6 +58,16 @@ export function AuthNavigator() {
       <Stack.Screen
         name="Register"
         component={RegisterScreen}
+      />
+
+      <Stack.Screen
+        name="ForgotPassword"
+        component={ForgotPasswordScreen}
+      />
+
+      <Stack.Screen
+        name="ResetPassword"
+        component={ResetPasswordScreen}
       />
 
       <Stack.Screen
