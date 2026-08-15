@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import {Bell, Footprints, Leaf, ListChecks, Settings, Star, Timer} from 'lucide-react-native';
+import {Bell, Footprints, Leaf, ListChecks, Settings, ShieldCheck, Star, Timer} from 'lucide-react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useFocusEffect} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -22,6 +22,8 @@ import {getUserTasks} from '../../services/userTaskService';
 import type {AuthUser} from '../../types/auth';
 import type {ProfileSummaryResponse} from '../../types/insights';
 import type {UserTaskDetail} from '../../types/userTask';
+import {isAppControlEnabled} from '../../services/appControlService';
+import {getAppLimitRules} from '../../storage/appControlStorage';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Home'>;
 
@@ -35,6 +37,8 @@ export function HomeScreen({navigation}: Props) {
   const [profile, setProfile] = useState<AuthUser | null>(null);
   const [summary, setSummary] = useState<ProfileSummaryResponse | null>(null);
   const [activeTask, setActiveTask] = useState<UserTaskDetail | null>(null);
+  const [appControlEnabled, setAppControlEnabledState] = useState(false);
+  const [limitedAppCount, setLimitedAppCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useFocusEffect(
@@ -43,10 +47,12 @@ export function HomeScreen({navigation}: Props) {
       async function loadDashboard() {
         setLoading(true);
         try {
-          const [user, taskSummary, userTasks] = await Promise.all([
+          const [user, taskSummary, userTasks, controlEnabled, appRules] = await Promise.all([
             getMyProfile(),
             getTaskSummary(),
             getUserTasks(1, 20),
+            isAppControlEnabled(),
+            getAppLimitRules(),
           ]);
           if (active) {
             setProfile(user);
@@ -54,6 +60,8 @@ export function HomeScreen({navigation}: Props) {
             setActiveTask(
               userTasks.items.find(item => item.status === 'IN_PROGRESS') ?? null,
             );
+            setAppControlEnabledState(controlEnabled);
+            setLimitedAppCount(appRules.filter(rule => rule.enabled).length);
           }
         } catch (error) {
           if (active) {
@@ -195,14 +203,23 @@ export function HomeScreen({navigation}: Props) {
           </View>
         </View>
 
-        <View style={styles.prototypeCard}>
-          <Text style={styles.prototypeTitle}>Kiểm soát ứng dụng · Prototype</Text>
-          <Text style={styles.prototypeText}>
-            Bản hiện tại chưa đọc UsageStats và chưa khóa ứng dụng thật. Màn hình
-            quản lý chỉ dùng để minh họa thiết kế.
+        <View style={styles.appControlCard}>
+          <View style={styles.appControlHeader}>
+            <ShieldCheck size={19} color={colors.primaryButton} />
+            <Text style={styles.appControlTitle}>Kiểm soát ứng dụng</Text>
+            <View style={[styles.statusBadge, appControlEnabled && styles.statusBadgeActive]}>
+              <Text style={[styles.statusText, appControlEnabled && styles.statusTextActive]}>
+                {appControlEnabled ? 'Đang bật' : 'Đang tắt'}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.appControlText}>
+            {limitedAppCount > 0
+              ? `${limitedAppCount} ứng dụng đang có quy tắc giới hạn. Touch Grass chỉ theo dõi và khóa các ứng dụng bạn chủ động chọn.`
+              : 'Bạn chưa chọn ứng dụng nào. Thiết lập giới hạn để giảm thời gian sử dụng màn hình.'}
           </Text>
           <Pressable onPress={() => navigation.navigate('AppManagement')}>
-            <Text style={styles.prototypeLink}>Xem giao diện prototype</Text>
+            <Text style={styles.appControlLink}>Quản lý ứng dụng và giới hạn</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -239,8 +256,13 @@ const styles = StyleSheet.create({
   metricCard: {width: '48.5%', minHeight: 112, padding: 15, borderWidth: 1, borderColor: colors.border, borderRadius: 18, backgroundColor: colors.surface},
   metricValue: {marginTop: 10, color: colors.primary, fontSize: 18, fontWeight: '800'},
   metricLabel: {marginTop: 3, color: colors.textSecondary, fontSize: 10},
-  prototypeCard: {marginTop: 16, padding: 16, borderWidth: 1, borderColor: colors.border, borderRadius: 18, backgroundColor: colors.surfaceSoft},
-  prototypeTitle: {color: colors.text, fontSize: 13, fontWeight: '800'},
-  prototypeText: {marginTop: 5, color: colors.textSecondary, fontSize: 11, lineHeight: 17},
-  prototypeLink: {marginTop: 9, color: colors.primaryButton, fontSize: 12, fontWeight: '800'},
+  appControlCard: {marginTop: 16, padding: 16, borderWidth: 1, borderColor: colors.border, borderRadius: 18, backgroundColor: colors.surfaceSoft},
+  appControlHeader: {flexDirection: 'row', alignItems: 'center', columnGap: 8},
+  appControlTitle: {flex: 1, color: colors.text, fontSize: 13, fontWeight: '800'},
+  statusBadge: {paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12, backgroundColor: colors.inputBackground},
+  statusBadgeActive: {backgroundColor: colors.primaryButton},
+  statusText: {color: colors.textSecondary, fontSize: 9, fontWeight: '700'},
+  statusTextActive: {color: '#FFFFFF'},
+  appControlText: {marginTop: 8, color: colors.textSecondary, fontSize: 11, lineHeight: 17},
+  appControlLink: {marginTop: 9, color: colors.primaryButton, fontSize: 12, fontWeight: '800'},
 });

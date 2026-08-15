@@ -41,3 +41,7 @@ export async function removeAppLimitRule(packageName: string): Promise<void> {
     JSON.stringify(rules.filter(item => item.packageName !== packageName)),
   );
 }
+
+export async function clearAppLimitRules(): Promise<void> {
+  await AsyncStorage.removeItem(APP_LIMIT_RULES_KEY);
+}

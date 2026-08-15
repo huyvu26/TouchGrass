@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.provider.Settings
+import android.os.Build
 import android.telecom.TelecomManager
 import android.provider.Telephony
 import com.facebook.react.bridge.Arguments
@@ -105,11 +106,20 @@ class UsageStatsModule(
 
   private fun hasUsageAccess(): Boolean {
     val appOps = reactContext.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-    val mode = appOps.checkOpNoThrow(
-      AppOpsManager.OPSTR_GET_USAGE_STATS,
-      android.os.Process.myUid(),
-      reactContext.packageName,
-    )
+    val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      appOps.unsafeCheckOpNoThrow(
+        AppOpsManager.OPSTR_GET_USAGE_STATS,
+        android.os.Process.myUid(),
+        reactContext.packageName,
+      )
+    } else {
+      @Suppress("DEPRECATION")
+      appOps.checkOpNoThrow(
+        AppOpsManager.OPSTR_GET_USAGE_STATS,
+        android.os.Process.myUid(),
+        reactContext.packageName,
+      )
+    }
     return mode == AppOpsManager.MODE_ALLOWED
   }
 

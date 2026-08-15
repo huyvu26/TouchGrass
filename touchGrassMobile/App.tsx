@@ -1,5 +1,8 @@
 import { StatusBar } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  type LinkingOptions,
+} from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import React from 'react';
 
@@ -7,6 +10,16 @@ import { colors } from './src/constants/colors';
 import { AuthNavigator } from './src/navigation/AuthNavigator';
 import {AuthProvider} from './src/auth/AuthContext';
 import {navigationRef} from './src/navigation/rootNavigation';
+import type {AuthStackParamList} from './src/navigation/types';
+
+const linking: LinkingOptions<AuthStackParamList> = {
+  prefixes: ['touchgrass://'],
+  config: {
+    screens: {
+      ResetPassword: 'reset-password',
+    },
+  },
+};
 
 export default function App() {
   
@@ -18,7 +31,7 @@ export default function App() {
       />
 
       <AuthProvider>
-        <NavigationContainer ref={navigationRef}>
+        <NavigationContainer ref={navigationRef} linking={linking}>
           <AuthNavigator />
         </NavigationContainer>
       </AuthProvider>

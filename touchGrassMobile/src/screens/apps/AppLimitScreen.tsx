@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -14,6 +15,8 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
+import {accessibilityMonitor} from '../../native/accessibilityMonitor';
+import {isUsageAccessGranted} from '../../services/usageStatsService';
 import {
   getAppLimitRules,
   type AppLimitRule,
@@ -21,6 +24,7 @@ import {
 import {
   removeAndSyncAppControlRule,
   saveAndSyncAppControlRule,
+  setAppControlEnabled,
 } from '../../services/appControlService';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'AppLimit'>;
@@ -33,6 +37,8 @@ export function AppLimitScreen({navigation, route}: Props) {
   const [activeDays, setActiveDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [startTime, setStartTime] = useState('00:00');
   const [endTime, setEndTime] = useState('23:59');
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     getAppLimitRules().then(rules => {
@@ -51,6 +57,7 @@ export function AppLimitScreen({navigation, route}: Props) {
   }
 
   async function save() {
+    if (saving) return;
     const minutes = Number(limit);
     const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
     if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
@@ -75,10 +82,28 @@ export function AppLimitScreen({navigation, route}: Props) {
       endTime,
     };
     try {
+      setSaving(true);
       await saveAndSyncAppControlRule(rule);
-      Alert.alert('Đã lưu', 'Quy tắc đã được lưu trên backend và đồng bộ xuống Android.');
+      const [usageGranted, accessibilityEnabled] = await Promise.all([
+        isUsageAccessGranted(),
+        accessibilityMonitor.isEnabled(),
+      ]);
+      if (usageGranted && accessibilityEnabled) {
+        await setAppControlEnabled(true);
+        Alert.alert(
+          'Đã lưu và kích hoạt',
+          'Quy tắc đã đồng bộ xuống Android. Touch Grass sẽ hiển thị màn hình giới hạn trực tiếp trên ứng dụng khi đủ thời gian.',
+        );
+      } else {
+        Alert.alert(
+          'Đã lưu quy tắc',
+          'Hãy cấp Usage Access và bật Accessibility để Android có thể theo dõi thời gian và hiển thị màn hình giới hạn.',
+        );
+      }
     } catch (error) {
       Alert.alert('Không thể lưu giới hạn', error instanceof Error ? error.message : 'Vui lòng thử lại.');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -88,8 +113,21 @@ export function AppLimitScreen({navigation, route}: Props) {
       {
         text: 'Xóa',
         style: 'destructive',
-        onPress: () => removeAndSyncAppControlRule(packageName)
-          .then(() => navigation.goBack()),
+        onPress: async () => {
+          if (deleting) return;
+          setDeleting(true);
+          try {
+            await removeAndSyncAppControlRule(packageName);
+            navigation.goBack();
+          } catch (error) {
+            Alert.alert(
+              'Không thể xóa giới hạn',
+              error instanceof Error ? error.message : 'Vui lòng thử lại.',
+            );
+          } finally {
+            setDeleting(false);
+          }
+        },
       },
     ]);
   }
@@ -102,9 +140,9 @@ export function AppLimitScreen({navigation, route}: Props) {
           <Text style={styles.title}>Giới hạn ứng dụng</Text>
         </View>
 
-        <View style={styles.prototype}>
+        <View style={styles.infoBanner}>
           <Shield size={17} color={colors.primaryButton} />
-          <Text style={styles.prototypeText}>Android dùng UsageStats và Accessibility để khóa đúng ứng dụng bạn đã chọn khi vượt giới hạn.</Text>
+          <Text style={styles.infoBannerText}>Android dùng UsageStats và Accessibility để khóa đúng ứng dụng bạn đã chọn khi vượt giới hạn.</Text>
         </View>
 
         <View style={styles.identity}>
@@ -154,8 +192,12 @@ export function AppLimitScreen({navigation, route}: Props) {
           </View>
         </View>
 
-        <Pressable style={styles.saveButton} onPress={save}><Text style={styles.saveText}>Lưu quy tắc</Text></Pressable>
-        <Pressable style={styles.deleteButton} onPress={remove}><Trash2 size={16} color={colors.error} /><Text style={styles.deleteText}>Xóa khỏi danh sách giới hạn</Text></Pressable>
+        <Pressable disabled={saving || deleting} style={[styles.saveButton, (saving || deleting) && styles.disabled]} onPress={save}>
+          {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveText}>Lưu quy tắc</Text>}
+        </Pressable>
+        <Pressable disabled={saving || deleting} style={[styles.deleteButton, (saving || deleting) && styles.disabled]} onPress={remove}>
+          {deleting ? <ActivityIndicator color={colors.error} /> : <><Trash2 size={16} color={colors.error} /><Text style={styles.deleteText}>Xóa khỏi danh sách giới hạn</Text></>}
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -167,8 +209,8 @@ const styles = StyleSheet.create({
   header: {flexDirection: 'row', alignItems: 'center', columnGap: 12},
   back: {width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: colors.surfaceSoft},
   title: {color: colors.text, fontSize: 20, fontWeight: '800'},
-  prototype: {padding: 13, flexDirection: 'row', alignItems: 'flex-start', columnGap: 9, borderRadius: 14, backgroundColor: colors.surfaceSoft},
-  prototypeText: {flex: 1, color: colors.textSecondary, fontSize: 12, lineHeight: 18},
+  infoBanner: {padding: 13, flexDirection: 'row', alignItems: 'flex-start', columnGap: 9, borderRadius: 14, backgroundColor: colors.surfaceSoft},
+  infoBannerText: {flex: 1, color: colors.textSecondary, fontSize: 12, lineHeight: 18},
   identity: {padding: 15, flexDirection: 'row', alignItems: 'center', columnGap: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 18, backgroundColor: colors.surface},
   appIcon: {width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.surfaceSoft},
   identityText: {flex: 1}, appName: {color: colors.text, fontSize: 16, fontWeight: '800'}, packageName: {marginTop: 3, color: colors.textSecondary, fontSize: 10},
@@ -183,4 +225,5 @@ const styles = StyleSheet.create({
   timeRow: {flexDirection: 'row', alignItems: 'center', columnGap: 9}, timeInput: {flex: 1, paddingVertical: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 11, color: colors.text, textAlign: 'center'}, to: {color: colors.textSecondary, fontSize: 12},
   saveButton: {height: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 26, backgroundColor: colors.primaryButton}, saveText: {color: '#FFFFFF', fontSize: 15, fontWeight: '700'},
   deleteButton: {height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8, borderWidth: 1, borderColor: colors.error, borderRadius: 25}, deleteText: {color: colors.error, fontSize: 14, fontWeight: '700'},
+  disabled: {opacity: 0.6},
 });

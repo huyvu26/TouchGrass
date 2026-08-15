@@ -32,7 +32,7 @@ import { colors } from '../../constants/colors';
 import type { AuthStackParamList } from '../../navigation/types';
 import {useAuth} from '../../auth/AuthContext';
 import {getApiOrigin, saveApiOrigin} from '../../storage/apiConfigStorage';
-import {signInWithGoogle} from '../../services/googleAuthService';
+import {isGoogleAuthConfigured, signInWithGoogle} from '../../services/googleAuthService';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
@@ -67,22 +67,8 @@ function GoogleLogo() {
   );
 }
 
-function AppleLogo() {
-  return (
-    <Svg width={18} height={20} viewBox="0 0 18 21">
-      <Path
-        d="M15.04 10.64c-.02-2.6 2.13-3.86 2.22-3.92-1.21-1.76-3.09-2-3.76-2.03-1.6-.16-3.13.94-3.94.94-.82 0-2.08-.92-3.42-.89C4.43 4.77 2.73 5.8 1.78 7.4-.17 10.62.86 15.4 2.75 18.04c.94 1.32 2.05 2.8 3.5 2.74 1.41-.06 1.94-.89 3.64-.89 1.7 0 2.18.89 3.66.86 1.51-.02 2.46-1.33 3.38-2.65.07-.1.13-.2.19-.3-2.22-.85-2.1-3.16-2.08-3.16z"
-        fill={colors.text}
-      />
-      <Path
-        d="M12.24 3.09C13 2.18 13.53.91 13.38-.05c-1.1.05-2.44.74-3.23 1.67-.7.83-1.33 2.14-1.16 3.38 1.22.09 2.47-.62 3.25-1.91z"
-        fill={colors.text}
-      />
-    </Svg>
-  );
-}
-
 export function LoginScreen({ navigation }: Props) {
+  const googleAuthConfigured = isGoogleAuthConfigured();
   const {setUser} = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -92,6 +78,7 @@ export function LoginScreen({ navigation }: Props) {
   const [isSubmitting, setIsSubmitting] =
     useState(false);
   const [apiOrigin, setApiOrigin] = useState('http://10.0.2.2:3000');
+  const [showServerConfig, setShowServerConfig] = useState(false);
 
   useEffect(() => {
     getApiOrigin().then(setApiOrigin);
@@ -196,13 +183,19 @@ export function LoginScreen({ navigation }: Props) {
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
-            <View style={styles.logo}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Logo Touch Grass"
+              accessibilityHint="Nhấn giữ để mở cấu hình máy chủ thử nghiệm"
+              delayLongPress={800}
+              style={styles.logo}
+              onLongPress={() => setShowServerConfig(current => !current)}>
               <TreePine
                 size={34}
                 color="#FFFFFF"
                 strokeWidth={2.4}
               />
-            </View>
+            </Pressable>
 
             <Text style={styles.title}>Chào mừng trở lại</Text>
             <Text style={styles.subtitle}>
@@ -211,7 +204,7 @@ export function LoginScreen({ navigation }: Props) {
           </View>
 
           <View style={styles.form}>
-            <View style={styles.field}>
+            {showServerConfig ? <View style={styles.field}>
               <Text style={styles.label}>Máy chủ backend</Text>
               <TextInput
                 style={styles.input}
@@ -225,9 +218,9 @@ export function LoginScreen({ navigation }: Props) {
                 onEndEditing={() => saveApiOrigin(apiOrigin).catch(() => undefined)}
               />
               <Text style={styles.serverHint}>
-                Emulator: 10.0.2.2 · Điện thoại thật: IP LAN của máy chạy backend
+                Cấu hình thử nghiệm · Nhấn giữ logo để đóng
               </Text>
-            </View>
+            </View> : null}
             <View style={styles.field}>
               <Text
                 style={[
@@ -400,7 +393,7 @@ export function LoginScreen({ navigation }: Props) {
             ) : null}
           </Pressable>
 
-          <View style={styles.dividerRow}>
+          {googleAuthConfigured ? <><View style={styles.dividerRow}>
             <View style={styles.divider} />
             <Text style={styles.dividerText}>
               HOẶC TIẾP TỤC VỚI
@@ -422,22 +415,7 @@ export function LoginScreen({ navigation }: Props) {
               </Text>
             </Pressable>
 
-            <Pressable
-              accessibilityRole="button"
-              style={({ pressed }) => [
-                styles.socialButton,
-                pressed && styles.pressed,
-              ]}
-              onPress={() => Alert.alert(
-                'Apple Sign In chưa sẵn sàng',
-                'Frontend đang chờ callback URL và mã trao đổi một lần từ backend. Nút này không giả lập đăng nhập.',
-              )}>
-              <AppleLogo />
-              <Text style={styles.socialText}>
-                Tiếp tục với Apple
-              </Text>
-            </Pressable>
-          </View>
+          </View></> : null}
 
           <View style={styles.footerRow}>
             <Text style={styles.footerText}>

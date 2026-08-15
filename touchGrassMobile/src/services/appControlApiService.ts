@@ -56,12 +56,13 @@ export async function deleteAppControlRuleByPackage(packageName: string): Promis
 export function createTemporaryUnlock(
   packageName: string,
   minutes: number,
+  sourceUserTaskId: string,
   operationKey: string,
 ): Promise<TemporaryUnlockResponse> {
   return apiRequest<TemporaryUnlockResponse>('/app-control/unlock', {
     method: 'POST',
     headers: {'Idempotency-Key': operationKey},
-    body: {packageName, minutes},
+    body: {packageName, minutes, sourceUserTaskId},
   });
 }
 
@@ -69,4 +70,10 @@ export function getTemporaryUnlockStatus(packageName: string): Promise<Temporary
   return apiRequest<TemporaryUnlockStatusResponse>(
     `/app-control/unlock/${encodeURIComponent(packageName)}/status`,
   );
+}
+
+export function deleteAppControlData(): Promise<{deleted: boolean}> {
+  return apiRequest<{deleted: boolean}>('/app-control/data', {
+    method: 'DELETE',
+  });
 }

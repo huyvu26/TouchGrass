@@ -13,6 +13,7 @@ interface AppControlNativeModule {
   grantTemporaryUnlock(userTaskId: string, minutes: number): Promise<boolean>;
   setTemporaryUnlockUntil(packageName: string, expiresAt: string): Promise<void>;
   emergencyDisable(): Promise<void>;
+  clearData(): Promise<void>;
 }
 
 function getModule(): AppControlNativeModule {
@@ -32,4 +33,5 @@ export const appControlNative = {
   setTemporaryUnlockUntil: (packageName: string, expiresAt: string) =>
     getModule().setTemporaryUnlockUntil(packageName, expiresAt),
   emergencyDisable: () => getModule().emergencyDisable(),
+  clearData: () => getModule().clearData(),
 };

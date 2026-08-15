@@ -1,20 +1,20 @@
 import {
+  clearAppLimitRules,
   getAppLimitRules,
+  removeAppLimitRule,
+  replaceAppLimitRules,
+  saveAppLimitRule,
   type AppLimitRule,
 } from '../storage/appControlStorage';
 import {getTodayUsage} from './usageStatsService';
 import {isProtectedPackage} from './protectedPackages';
 import {appControlNative} from '../native/appControl';
 import {
+  deleteAppControlData,
   deleteAppControlRuleByPackage,
   getAppControlRules,
   upsertAppControlRule,
 } from './appControlApiService';
-import {
-  removeAppLimitRule,
-  replaceAppLimitRules,
-  saveAppLimitRule,
-} from '../storage/appControlStorage';
 
 export interface AppLimitEvaluation {
   shouldWarn: boolean;
@@ -83,3 +83,9 @@ export const grantPendingAppTemporaryUnlock = appControlNative.grantTemporaryUnl
 export const getPendingLockedApp = appControlNative.getPendingLockedApp;
 export const setTemporaryUnlockUntil = appControlNative.setTemporaryUnlockUntil;
 export const emergencyDisableAppControl = appControlNative.emergencyDisable;
+
+export async function deleteAndClearAppControlData(): Promise<void> {
+  await deleteAppControlData();
+  await clearAppLimitRules();
+  await appControlNative.clearData();
+}

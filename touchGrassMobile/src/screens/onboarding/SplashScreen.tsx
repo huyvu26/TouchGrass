@@ -2,9 +2,11 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import {Leaf, TreePine} from 'lucide-react-native';
@@ -21,6 +23,7 @@ import {
   getAccessToken,
   isOnboardingComplete,
 } from '../../storage/authStorage';
+import {getApiOrigin, saveApiOrigin} from '../../storage/apiConfigStorage';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
@@ -31,6 +34,10 @@ export function SplashScreen({navigation}: Props) {
   const {setUser} = useAuth();
   const [restoring, setRestoring] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showServerConfig, setShowServerConfig] = useState(false);
+  const [apiOrigin, setApiOrigin] = useState('');
+  const [serverConfigError, setServerConfigError] = useState<string | null>(null);
+  const [savingServer, setSavingServer] = useState(false);
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.9)).current;
 
@@ -88,6 +95,31 @@ export function SplashScreen({navigation}: Props) {
       setRestoring(false);
     }
   }, [navigation, setUser]);
+
+  async function openServerConfig() {
+    setApiOrigin(await getApiOrigin());
+    setServerConfigError(null);
+    setShowServerConfig(true);
+  }
+
+  async function saveServerAndRetry() {
+    if (savingServer) return;
+    setSavingServer(true);
+    setServerConfigError(null);
+    try {
+      await saveApiOrigin(apiOrigin);
+      setShowServerConfig(false);
+      await restoreSession();
+    } catch (saveError) {
+      setServerConfigError(
+        saveError instanceof Error
+          ? saveError.message
+          : 'Không thể lưu địa chỉ máy chủ.',
+      );
+    } finally {
+      setSavingServer(false);
+    }
+  }
 
   useEffect(() => {
     Animated.parallel([
@@ -155,9 +187,54 @@ export function SplashScreen({navigation}: Props) {
             <Pressable style={styles.retryButton} onPress={restoreSession}>
               <Text style={styles.retryText}>Thử lại</Text>
             </Pressable>
+            <Pressable style={styles.serverButton} onPress={openServerConfig}>
+              <Text style={styles.serverButtonText}>Đổi máy chủ backend</Text>
+            </Pressable>
           </View>
         ) : null}
       </View>
+
+      <Modal
+        visible={showServerConfig}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowServerConfig(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.serverCard}>
+            <Text style={styles.serverTitle}>Máy chủ backend</Text>
+            <Text style={styles.serverDescription}>
+              Emulator dùng 10.0.2.2. Điện thoại thật phải dùng IP LAN của máy tính đang chạy backend.
+            </Text>
+            <TextInput
+              value={apiOrigin}
+              onChangeText={setApiOrigin}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              placeholder="http://192.168.1.10:3000"
+              placeholderTextColor={colors.placeholder}
+              style={styles.serverInput}
+            />
+            {serverConfigError ? <Text style={styles.serverError}>{serverConfigError}</Text> : null}
+            <View style={styles.serverActions}>
+              <Pressable
+                disabled={savingServer}
+                style={styles.cancelButton}
+                onPress={() => setShowServerConfig(false)}>
+                <Text style={styles.cancelText}>Hủy</Text>
+              </Pressable>
+              <Pressable
+                disabled={savingServer}
+                style={[styles.saveButton, savingServer && styles.disabled]}
+                onPress={saveServerAndRetry}>
+                {savingServer
+                  ? <ActivityIndicator color="#FFFFFF" />
+                  : <Text style={styles.saveText}>Lưu và thử lại</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -260,6 +337,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryButton,
   },
   retryText: {color: '#FFFFFF', fontSize: 13, fontWeight: '700'},
+  serverButton: {paddingHorizontal: 18, paddingVertical: 9},
+  serverButtonText: {color: colors.primaryButton, fontSize: 12, fontWeight: '700'},
+  modalBackdrop: {flex: 1, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(21,66,18,0.42)'},
+  serverCard: {width: '100%', padding: 22, borderRadius: 22, backgroundColor: colors.surface},
+  serverTitle: {color: colors.text, fontSize: 19, fontWeight: '800'},
+  serverDescription: {marginTop: 7, color: colors.textSecondary, fontSize: 12, lineHeight: 18},
+  serverInput: {height: 50, marginTop: 16, paddingHorizontal: 14, borderWidth: 1.5, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.inputBackground, color: colors.text, fontSize: 14},
+  serverError: {marginTop: 7, color: colors.error, fontSize: 11},
+  serverActions: {marginTop: 18, flexDirection: 'row', columnGap: 10},
+  cancelButton: {height: 46, flex: 1, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.primaryButton, borderRadius: 23},
+  cancelText: {color: colors.primaryButton, fontSize: 13, fontWeight: '700'},
+  saveButton: {height: 46, flex: 1.4, alignItems: 'center', justifyContent: 'center', borderRadius: 23, backgroundColor: colors.primaryButton},
+  saveText: {color: '#FFFFFF', fontSize: 13, fontWeight: '700'},
+  disabled: {opacity: 0.6},
   activeDot: {
     width: 24,
     height: 8,

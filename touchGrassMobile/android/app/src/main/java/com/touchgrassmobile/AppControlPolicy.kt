@@ -2,6 +2,7 @@ package com.touchgrassmobile
 
 import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
+import android.app.usage.UsageEvents
 import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
@@ -140,11 +141,29 @@ object AppControlPolicy {
       set(Calendar.MILLISECOND, 0)
     }
     val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-    val totalMs = manager.queryUsageStats(
-      UsageStatsManager.INTERVAL_DAILY,
-      calendar.timeInMillis,
-      System.currentTimeMillis(),
-    ).filter { it.packageName == packageName }.sumOf { it.totalTimeInForeground }
+    val now = System.currentTimeMillis()
+    val events = manager.queryEvents(calendar.timeInMillis, now)
+    val event = UsageEvents.Event()
+    var foregroundAt: Long? = null
+    var totalMs = 0L
+    while (events.hasNextEvent()) {
+      events.getNextEvent(event)
+      if (event.packageName != packageName) continue
+      when (event.eventType) {
+        UsageEvents.Event.MOVE_TO_FOREGROUND,
+        UsageEvents.Event.ACTIVITY_RESUMED -> if (foregroundAt == null) {
+          foregroundAt = event.timeStamp.coerceAtLeast(calendar.timeInMillis)
+        }
+        UsageEvents.Event.MOVE_TO_BACKGROUND,
+        UsageEvents.Event.ACTIVITY_PAUSED -> foregroundAt?.let { startedAt ->
+          if (event.timeStamp > startedAt) totalMs += event.timeStamp - startedAt
+          foregroundAt = null
+        }
+      }
+    }
+    foregroundAt?.let { startedAt ->
+      if (now > startedAt) totalMs += now - startedAt
+    }
     return (totalMs / 60_000L).toInt()
   }
 

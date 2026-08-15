@@ -1,7 +1,8 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useState} from 'react';
 import {Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {ChevronRight, ShieldAlert} from 'lucide-react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {useFocusEffect} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
 import {ScreenHeader} from '../../components/ScreenHeader';
@@ -9,15 +10,14 @@ import {ToggleSwitch} from '../../components/ToggleSwitch';
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
 import {useAuth} from '../../auth/AuthContext';
-import {loadSettings, saveSettings} from '../../storage/settingsStorage';
 import {
+  deleteAndClearAppControlData,
   emergencyDisableAppControl,
   isAppControlEnabled,
   setAppControlEnabled,
 } from '../../services/appControlService';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Settings'>;
-interface LocalSettings {taskReminder: boolean; notifications: boolean}
 
 function Row({label, subtitle, onPress, value, danger}: {label: string; subtitle?: string; onPress?: () => void; value?: string; danger?: boolean}) {
   return (
@@ -35,26 +35,20 @@ function Row({label, subtitle, onPress, value, danger}: {label: string; subtitle
 export function SettingsScreen({navigation}: Props) {
   const {logout} = useAuth();
   const [appControl, setAppControl] = useState(false);
-  const [local, setLocal] = useState<LocalSettings>({taskReminder: false, notifications: true});
   const [showLogout, setShowLogout] = useState(false);
+  const [deletingAppControl, setDeletingAppControl] = useState(false);
 
-  useEffect(() => {
-    Promise.all([
-      isAppControlEnabled(),
-      loadSettings<LocalSettings>(),
-    ]).then(([enabled, stored]) => {
-      setAppControl(enabled);
-      setLocal(current => ({...current, ...stored}));
-    });
-  }, []);
-
-  function updateLocal(key: keyof LocalSettings) {
-    setLocal(current => {
-      const next = {...current, [key]: !current[key]};
-      saveSettings(next).catch(() => undefined);
-      return next;
-    });
-  }
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    isAppControlEnabled()
+      .then(enabled => {
+        if (active) setAppControl(enabled);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []));
 
   async function toggleControl() {
     if (!appControl) {
@@ -69,6 +63,36 @@ export function SettingsScreen({navigation}: Props) {
     await emergencyDisableAppControl();
     setAppControl(false);
     Alert.alert('Đã tắt App Control', 'Touch Grass sẽ không mở màn hình khóa cho đến khi bạn bật lại.');
+  }
+
+  function confirmDeleteAppControlData() {
+    Alert.alert(
+      'Xóa dữ liệu App Control?',
+      'Toàn bộ ứng dụng đã chọn, giới hạn và phiên mở khóa sẽ bị xóa trên backend và thiết bị này. Tài khoản và lịch sử nhiệm vụ không bị xóa.',
+      [
+        {text: 'Hủy', style: 'cancel'},
+        {
+          text: 'Xóa dữ liệu',
+          style: 'destructive',
+          onPress: async () => {
+            if (deletingAppControl) return;
+            setDeletingAppControl(true);
+            try {
+              await deleteAndClearAppControlData();
+              setAppControl(false);
+              Alert.alert('Đã xóa', 'Dữ liệu App Control đã được xóa khỏi backend và thiết bị.');
+            } catch (error) {
+              Alert.alert(
+                'Không thể xóa dữ liệu',
+                error instanceof Error ? error.message : 'Vui lòng thử lại.',
+              );
+            } finally {
+              setDeletingAppControl(false);
+            }
+          },
+        },
+      ],
+    );
   }
 
   async function confirmLogout() {
@@ -102,24 +126,18 @@ export function SettingsScreen({navigation}: Props) {
         <Text style={styles.sectionLabel}>QUYỀN VÀ RIÊNG TƯ</Text>
         <View style={styles.section}>
           <Row label="Quản lý quyền truy cập" subtitle="Camera, GPS, Usage Access và Accessibility" onPress={() => navigation.navigate('Permission')} />
-          <Row label="Dữ liệu App Control" subtitle="Rule và thời gian mở khóa được lưu local trên thiết bị" />
-          <Row label="Xóa dữ liệu tài khoản" subtitle="Chưa có API backend — chưa khả dụng" value="Chưa hỗ trợ" />
-        </View>
-
-        <Text style={styles.sectionLabel}>NHIỆM VỤ VÀ THÔNG BÁO</Text>
-        <View style={styles.section}>
-          <View style={styles.toggleRow}>
-            <View style={styles.rowContent}><Text style={styles.rowLabel}>Thông báo trong ứng dụng</Text><Text style={styles.rowSubtitle}>Áp dụng cho màn hình thông báo hiện tại</Text></View>
-            <ToggleSwitch value={local.notifications} onValueChange={() => updateLocal('notifications')} />
-          </View>
-          <Row label="Nhắc nhiệm vụ hằng ngày" subtitle="Chưa có Android notification scheduler" value="Chưa hỗ trợ" />
-          <Row label="Ưu tiên nhiệm vụ ngoài trời" subtitle="Danh sách nhiệm vụ do backend cung cấp" value="Backend" />
+          <Row label="Dữ liệu App Control" subtitle="Quy tắc được đồng bộ với backend và lưu bản sao trên thiết bị" />
+          <Row
+            label={deletingAppControl ? 'Đang xóa dữ liệu…' : 'Xóa dữ liệu App Control'}
+            subtitle="Không xóa tài khoản hoặc lịch sử nhiệm vụ"
+            danger
+            onPress={deletingAppControl ? undefined : confirmDeleteAppControlData}
+          />
         </View>
 
         <Text style={styles.sectionLabel}>ỨNG DỤNG</Text>
         <View style={styles.section}>
           <Row label="Ngôn ngữ" value="Tiếng Việt" />
-          <Row label="Giao diện tối" value="Chưa hỗ trợ" />
           <Row label="Giới thiệu Touch Grass" subtitle="Ứng dụng hỗ trợ giảm thời gian màn hình bằng nhiệm vụ ngoài trời." />
           <Row label="Phiên bản" value="1.0.0" />
         </View>

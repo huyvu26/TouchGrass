@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -21,10 +21,16 @@ import {resetPassword} from '../../services/authService';
 type Props = NativeStackScreenProps<AuthStackParamList, 'ResetPassword'>;
 
 export function ResetPasswordScreen({navigation, route}: Props) {
-  const [token, setToken] = useState('');
+  const [token, setToken] = useState(route.params?.token ?? '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (route.params?.token) {
+      setToken(route.params.token);
+    }
+  }, [route.params?.token]);
 
   async function submit() {
     if (!token.trim()) {
@@ -60,13 +66,17 @@ export function ResetPasswordScreen({navigation, route}: Props) {
           <Pressable style={styles.back} onPress={() => navigation.goBack()}><ChevronLeft size={22} color={colors.text} /></Pressable>
           <View style={styles.icon}><KeyRound size={30} color={colors.primaryButton} /></View>
           <Text style={styles.title}>Đặt lại mật khẩu</Text>
-          <Text style={styles.subtitle}>Email: {route.params.email}</Text>
+          <Text style={styles.subtitle}>
+            {route.params?.email
+              ? `Email: ${route.params.email}`
+              : 'Liên kết xác nhận đã được mở từ email của bạn.'}
+          </Text>
           <Text style={styles.label}>Mã xác nhận hoặc token</Text>
-          <TextInput value={token} onChangeText={setToken} autoCapitalize="none" autoCorrect={false} style={styles.input} placeholder="Nhập mã nhận được" placeholderTextColor={colors.placeholder} />
+          <TextInput value={token} onChangeText={setToken} autoCapitalize="none" autoCorrect={false} editable={!route.params?.token} style={[styles.input, route.params?.token && styles.prefilledInput]} placeholder="Nhập mã nhận được" placeholderTextColor={colors.placeholder} />
           <Text style={styles.label}>Mật khẩu mới</Text>
           <TextInput value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" style={styles.input} placeholder="Ít nhất 8 ký tự" placeholderTextColor={colors.placeholder} />
           <Text style={styles.label}>Xác nhận mật khẩu</Text>
-          <TextInput value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry autoCapitalize="none" style={styles.input} placeholder="Nhập lại mật khẩu mới" placeholderTextColor={colors.placeholder} onSubmitEditing={submit} />
+          <TextInput value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry autoCapitalize="none" style={styles.input} placeholder="Nhập lại mật khẩu mới" placeholderTextColor={colors.placeholder} returnKeyType="done" />
           <Pressable disabled={submitting} style={[styles.button, submitting && styles.disabled]} onPress={submit}>
             {submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>Cập nhật mật khẩu</Text>}
           </Pressable>
@@ -83,6 +93,7 @@ const styles = StyleSheet.create({
   title: {marginTop: 18, color: colors.text, fontSize: 28, fontWeight: '800'}, subtitle: {marginTop: 8, marginBottom: 14, color: colors.textSecondary, fontSize: 13},
   label: {marginTop: 16, marginBottom: 7, color: colors.text, fontSize: 13, fontWeight: '700'},
   input: {height: 52, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.surface, color: colors.text, fontSize: 15},
+  prefilledInput: {color: colors.textSecondary, backgroundColor: colors.surfaceSoft},
   button: {height: 54, marginTop: 24, alignItems: 'center', justifyContent: 'center', borderRadius: 27, backgroundColor: colors.primaryButton},
   buttonText: {color: '#FFFFFF', fontSize: 15, fontWeight: '800'}, disabled: {opacity: 0.65},
 });

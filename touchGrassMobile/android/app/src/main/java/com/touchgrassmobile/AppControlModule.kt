@@ -91,4 +91,13 @@ class AppControlModule(
       .apply()
     promise.resolve(null)
   }
+
+  @ReactMethod
+  fun clearData(promise: Promise) {
+    reactContext.getSharedPreferences(AppControlPolicy.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+      .edit()
+      .clear()
+      .apply()
+    promise.resolve(null)
+  }
 }

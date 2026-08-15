@@ -1,8 +1,11 @@
 package com.touchgrassmobile
 
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import android.view.accessibility.AccessibilityManager
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -16,7 +19,7 @@ class AccessibilityMonitorModule(
   @ReactMethod
   fun isAccessibilityEnabled(promise: Promise) {
     val expected = ComponentName(reactContext, AppMonitorAccessibilityService::class.java)
-    val enabled = Settings.Secure.getInt(
+    val enabledInSecureSettings = Settings.Secure.getInt(
       reactContext.contentResolver,
       Settings.Secure.ACCESSIBILITY_ENABLED,
       0,
@@ -24,9 +27,23 @@ class AccessibilityMonitorModule(
       reactContext.contentResolver,
       Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
     ).orEmpty().split(':').mapNotNull(ComponentName::unflattenFromString).any {
-      it == expected
+      it.packageName == expected.packageName &&
+        it.className == expected.className
     }
-    promise.resolve(enabled)
+    val manager = reactContext.getSystemService(
+      Context.ACCESSIBILITY_SERVICE,
+    ) as AccessibilityManager
+    val enabledInManager = manager
+      .getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+      .any { service ->
+        service.resolveInfo.serviceInfo.packageName == expected.packageName &&
+          service.resolveInfo.serviceInfo.name == expected.className
+      }
+    promise.resolve(
+      AppMonitorAccessibilityService.isRunning ||
+        enabledInSecureSettings ||
+        enabledInManager,
+    )
   }
 
   @ReactMethod

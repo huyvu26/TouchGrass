@@ -1,6 +1,7 @@
-import React, {useCallback, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {
   Alert,
+  AppState,
   Linking,
   PermissionsAndroid,
   Pressable,
@@ -109,6 +110,18 @@ export function PermissionScreen({navigation}: Props) {
     }, [refresh]),
   );
 
+  useEffect(() => {
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    const subscription = AppState.addEventListener('change', state => {
+      if (state !== 'active') return;
+      refreshTimer = setTimeout(refresh, 300);
+    });
+    return () => {
+      subscription.remove();
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
+  }, [refresh]);
+
   async function requestCamera() {
     if (statuses.camera === 'settings') return Linking.openSettings();
     try {
@@ -205,7 +218,7 @@ export function PermissionScreen({navigation}: Props) {
 
         <View style={styles.privacy}>
           <Shield size={17} color={colors.primaryButton} />
-          <Text style={styles.privacyText}>Dữ liệu App Control được lưu local. Touch Grass không đọc nội dung cửa sổ, thông báo, mật khẩu hay dữ liệu nhập và không tự động khóa ứng dụng trong giai đoạn này.</Text>
+          <Text style={styles.privacyText}>Dữ liệu App Control được lưu local. Touch Grass không đọc nội dung cửa sổ, thông báo, mật khẩu hay dữ liệu nhập. Màn hình giới hạn chỉ xuất hiện với ứng dụng bạn chủ động chọn sau khi bật App Control.</Text>
         </View>
         <Pressable style={styles.primaryButton} onPress={continueToHome}>
           <Text style={styles.primaryText}>Hoàn tất thiết lập</Text>

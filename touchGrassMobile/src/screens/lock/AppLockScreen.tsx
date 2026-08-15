@@ -1,11 +1,11 @@
-import React, {useState} from 'react';
+import React from 'react';
 import {
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import {AlertCircle, Lock} from 'lucide-react-native';
+import {Lock} from 'lucide-react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
@@ -18,8 +18,6 @@ type Props = NativeStackScreenProps<
 >;
 
 export function AppLockScreen({navigation}: Props) {
-  const [showDetail, setShowDetail] = useState(false);
-
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.backgroundPattern}>
@@ -36,9 +34,6 @@ export function AppLockScreen({navigation}: Props) {
       <View style={styles.shade} />
 
       <View style={styles.content}>
-        <View style={styles.prototypeBadge}>
-          <Text style={styles.prototypeText}>PROTOTYPE · KHÔNG KHÓA APP THẬT</Text>
-        </View>
         <View style={styles.illustration}>
           <View style={styles.treeTopLarge} />
           <View style={styles.treeTopMedium} />
@@ -51,62 +46,21 @@ export function AppLockScreen({navigation}: Props) {
 
         <Text style={styles.title}>Bạn đã hết thời gian!</Text>
         <Text style={styles.subtitle}>
-          Đây là bản xem trước giao diện khóa ứng dụng.{'\n'}
-          Chưa có dữ liệu UsageStats hoặc Accessibility thật.
+          Ứng dụng này đã đạt giới hạn bạn thiết lập.{`\n`}
+          Touch Grass dùng Usage Access để tính thời gian và Accessibility để phát hiện ứng dụng đang mở.
         </Text>
 
         <Pressable
           style={styles.taskButton}
-          onPress={() => setShowDetail(value => !value)}>
+          onPress={() => navigation.navigate('TaskHub')}>
           <Text style={styles.taskButtonText}>
-            🚶 Làm nhiệm vụ: Đi bộ 500m
+            Chọn nhiệm vụ để nhận thời gian mở khóa
           </Text>
         </Pressable>
 
-        {showDetail ? (
-          <View style={styles.detailCard}>
-            <Text style={styles.detailTitle}>
-              Chi tiết nhiệm vụ
-            </Text>
-            {[
-              ['📍 Nhiệm vụ', 'Chọn từ Task Hub'],
-              ['⚡ Phần thưởng', 'Backend quyết định'],
-              ['🔓 Mở khóa', 'Chưa hỗ trợ App Control'],
-            ].map(([label, value]) => (
-              <View key={label} style={styles.detailRow}>
-                <Text style={styles.detailLabel}>{label}</Text>
-                <Text style={styles.detailValue}>{value}</Text>
-              </View>
-            ))}
-            <Pressable
-              style={styles.startButton}
-              onPress={() => navigation.navigate('TaskHub')}>
-              <Text style={styles.startButtonText}>
-                Bắt đầu ngay
-              </Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        <View style={styles.penaltyCard}>
-          <View style={styles.penaltyHeader}>
-            <AlertCircle size={19} color="#FF8A8A" />
-            <View style={styles.penaltyTextContainer}>
-              <Text style={styles.penaltyTitle}>
-                Dùng thêm có phí
-              </Text>
-              <Text style={styles.penaltyDescription}>
-                Chức năng dùng điểm để mở khóa chưa được backend và Android
-                native hỗ trợ trong bản hiện tại.
-              </Text>
-            </View>
-          </View>
-          <Pressable style={styles.penaltyButton}>
-            <Text style={styles.penaltyButtonText}>
-              Chưa khả dụng
-            </Text>
-          </Pressable>
-        </View>
+        <Text style={styles.safetyText}>
+          Bạn luôn có thể tắt khẩn cấp App Control trong Cài đặt Touch Grass để tránh bị kẹt.
+        </Text>
 
       </View>
     </SafeAreaView>
@@ -133,8 +87,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(11,28,8,0.88)',
   },
   content: {flex: 1, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center'},
-  prototypeBadge: {marginBottom: 12, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: 'rgba(176,242,103,0.4)', borderRadius: 14},
-  prototypeText: {color: colors.lime, fontSize: 9, fontWeight: '800', letterSpacing: 0.5},
   illustration: {width: 150, height: 150, marginBottom: 20, position: 'relative', alignItems: 'center', justifyContent: 'flex-end', borderRadius: 75, backgroundColor: 'rgba(176,242,103,0.08)'},
   treeTopLarge: {position: 'absolute', bottom: 28, width: 72, height: 88, borderRadius: 40, backgroundColor: '#2D5A27'},
   treeTopMedium: {position: 'absolute', bottom: 52, width: 56, height: 70, borderRadius: 32, backgroundColor: '#3A7033'},
@@ -145,20 +97,7 @@ const styles = StyleSheet.create({
   subtitle: {marginTop: 9, marginBottom: 26, color: 'rgba(255,255,255,0.68)', fontSize: 15, lineHeight: 23, textAlign: 'center'},
   taskButton: {width: '100%', height: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 28, backgroundColor: colors.lime, shadowColor: colors.lime, shadowOpacity: 0.32, shadowRadius: 14, elevation: 5},
   taskButtonText: {color: colors.primary, fontSize: 15, fontWeight: '800'},
-  detailCard: {width: '100%', marginTop: 12, padding: 15, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)'},
-  detailTitle: {marginBottom: 9, color: '#FFFFFF', fontSize: 14, fontWeight: '700'},
-  detailRow: {marginBottom: 7, flexDirection: 'row', justifyContent: 'space-between'},
-  detailLabel: {color: 'rgba(255,255,255,0.6)', fontSize: 12},
-  detailValue: {color: colors.lime, fontSize: 12, fontWeight: '600'},
-  startButton: {height: 38, marginTop: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: colors.primaryButton},
-  startButtonText: {color: '#FFFFFF', fontSize: 13, fontWeight: '700'},
-  penaltyCard: {width: '100%', marginTop: 14, padding: 14, borderWidth: 1, borderColor: 'rgba(255,100,100,0.3)', borderRadius: 18, backgroundColor: 'rgba(186,26,26,0.17)'},
-  penaltyHeader: {flexDirection: 'row', alignItems: 'flex-start', columnGap: 10},
-  penaltyTextContainer: {flex: 1},
-  penaltyTitle: {color: '#FF8A8A', fontSize: 13, fontWeight: '700'},
-  penaltyDescription: {marginTop: 3, color: 'rgba(255,255,255,0.55)', fontSize: 12, lineHeight: 18},
-  penaltyButton: {height: 38, marginTop: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,100,100,0.45)', borderRadius: 19, backgroundColor: 'rgba(186,26,26,0.25)'},
-  penaltyButtonText: {color: '#FF8A8A', fontSize: 13, fontWeight: '700'},
+  safetyText: {marginTop: 18, color: 'rgba(255,255,255,0.58)', fontSize: 12, lineHeight: 18, textAlign: 'center'},
   savedRow: {marginTop: 20, flexDirection: 'row', alignItems: 'center', columnGap: 8},
   savedText: {color: 'rgba(255,255,255,0.5)', fontSize: 12},
 });

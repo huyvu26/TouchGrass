@@ -21,6 +21,7 @@ export const protectedPackageAllowlist = EXACT_PROTECTED_PACKAGES;
 export function isProtectedPackage(packageName: string): boolean {
   return (
     EXACT_PROTECTED_PACKAGES.has(packageName) ||
+    packageName.startsWith('com.touchgrassmobile') ||
     packageName.startsWith('com.android.launcher') ||
     packageName.startsWith('com.google.android.apps.nexuslauncher') ||
     packageName.includes('.permissioncontroller') ||

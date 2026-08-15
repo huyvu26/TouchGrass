@@ -1,6 +1,7 @@
-import React, {useCallback, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {
   Alert,
+  AppState,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -109,6 +110,18 @@ export function AppManagementScreen({navigation}: Props) {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  useEffect(() => {
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    const subscription = AppState.addEventListener('change', state => {
+      if (state !== 'active') return;
+      refreshTimer = setTimeout(load, 300);
+    });
+    return () => {
+      subscription.remove();
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
+  }, [load]);
+
   const ruleByPackage = useMemo(
     () => new Map(rules.map(rule => [rule.packageName, rule])),
     [rules],
@@ -198,6 +211,17 @@ export function AppManagementScreen({navigation}: Props) {
           <View style={styles.permissionInfo}>
             <Text style={styles.permissionTitle}>Usage Access chưa được cấp</Text>
             <Text style={styles.permissionText}>Mở cài đặt Android để xem thời lượng sử dụng thật.</Text>
+          </View>
+          <ChevronRight size={18} color={colors.textSecondary} />
+        </Pressable>
+      ) : null}
+
+      {!hasAccessibility ? (
+        <Pressable style={styles.permissionCard} onPress={accessibilityMonitor.openSettings}>
+          <ShieldAlert size={18} color={colors.error} />
+          <View style={styles.permissionInfo}>
+            <Text style={styles.permissionTitle}>Accessibility chưa được bật</Text>
+            <Text style={styles.permissionText}>Bật “Theo dõi ứng dụng Touch Grass” để phát hiện ứng dụng đang mở.</Text>
           </View>
           <ChevronRight size={18} color={colors.textSecondary} />
         </Pressable>
