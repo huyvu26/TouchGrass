@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useState} from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -17,11 +17,13 @@ import {
   Zap,
 } from 'lucide-react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {useFocusEffect} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
 import {getTasks} from '../../services/taskService';
+import {getUserTasks} from '../../services/userTaskService';
 import {getMyProfile} from '../../services/userService';
 import type {
   Task,
@@ -63,6 +65,29 @@ const DIFFICULTY_LABELS: Record<TaskDifficulty, string> = {
   MEDIUM: 'Trung bình',
   HARD: 'Khó',
 };
+
+function getVietnamDateKey(date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find(part => part.type === type)?.value ?? '';
+  return `${value('year')}-${value('month')}-${value('day')}`;
+}
+
+function getCurrentCycleKeys(): Set<string> {
+  const today = getVietnamDateKey();
+  const monday = new Date(`${today}T00:00:00.000Z`);
+  const mondayOffset = (monday.getUTCDay() + 6) % 7;
+  monday.setUTCDate(monday.getUTCDate() - mondayOffset);
+  return new Set([
+    `DAILY:${today}`,
+    `WEEKLY:${monday.toISOString().slice(0, 10)}`,
+  ]);
+}
 
 interface BottomNavProps {
   onHome: () => void;
@@ -133,18 +158,37 @@ export function TaskHubScreen({navigation}: Props) {
   const [activeTab, setActiveTab] =
     useState<TaskFrequency>('DAILY');
   const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [xp, setXp] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const tasks = allTasks.filter(task => task.frequency === activeTab);
+  const tasks = allTasks.filter(
+    task =>
+      task.frequency === activeTab &&
+      !completedTaskIds.has(task._id),
+  );
 
-  async function loadTasks() {
+  const loadTasks = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const taskData = await getTasks();
+      const [taskData, userTasks] = await Promise.all([
+        getTasks(),
+        getUserTasks(1, 50),
+      ]);
       setAllTasks(taskData);
+      const currentCycles = getCurrentCycleKeys();
+      setCompletedTaskIds(new Set(
+        userTasks.items
+          .filter(item =>
+            item.status === 'COMPLETED' &&
+            currentCycles.has(item.cycleKey),
+          )
+          .map(item => item.task._id),
+      ));
 
       try {
         const profile = await getMyProfile();
@@ -161,11 +205,11 @@ export function TaskHubScreen({navigation}: Props) {
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    loadTasks();
   }, []);
+
+  useFocusEffect(useCallback(() => {
+    loadTasks();
+  }, [loadTasks]));
 
   function handleTask(task: Task) {
     navigation.navigate('TaskDetail', {taskId: task._id});

@@ -150,7 +150,7 @@ export function ManualCheckinScreen({navigation, route}: Props) {
             {phase === 'running'
               ? 'Đang thực hiện nhiệm vụ'
               : phase === 'finishing'
-                ? 'Backend đang xác minh'
+                ? 'Hệ thống đang xác minh'
                 : phase === 'failed'
                   ? 'Chưa đạt thời gian mục tiêu'
                   : phase === 'error'
@@ -162,14 +162,14 @@ export function ManualCheckinScreen({navigation, route}: Props) {
         <View style={styles.infoCard}>
           <ShieldCheck size={20} color={colors.primaryButton} />
           <Text style={styles.infoText}>
-            Thời gian bắt đầu và kết quả được lấy từ backend. Ứng dụng không tự
+            Thời gian bắt đầu và kết quả được hệ thống ghi nhận. Ứng dụng không tự
             khai báo thời lượng hoàn thành.
           </Text>
         </View>
 
         {result?.alreadyProcessed ? (
           <Text style={styles.processedText}>
-            Backend đã xử lý phiên này; ứng dụng đang dùng nguyên kết quả trả về.
+            Phiên này đã được xử lý; ứng dụng đang hiển thị kết quả đã lưu.
           </Text>
         ) : null}
 
@@ -177,7 +177,7 @@ export function ManualCheckinScreen({navigation, route}: Props) {
           <Text style={styles.errorText}>
             {result?.failureReason === 'TARGET_NOT_REACHED'
               ? `Bạn mới thực hiện ${formatDuration(result.durationSeconds)}, chưa đủ mục tiêu.`
-              : 'Nhiệm vụ chưa được backend xác minh.'}
+              : 'Nhiệm vụ chưa được xác minh.'}
           </Text>
         ) : error ? (
           <Text style={styles.errorText}>{error}</Text>

@@ -20,7 +20,7 @@ export function NotificationsScreen({navigation}: Props) {
         </View>
         <Text style={styles.title}>Chưa có thông báo</Text>
         <Text style={styles.description}>
-          Backend hiện chưa cung cấp API thông báo. Kết quả nhiệm vụ và thành
+          Tính năng thông báo trực tuyến đang được hoàn thiện. Kết quả nhiệm vụ và thành
           tích thật vẫn có thể xem trong Lịch sử và Thống kê.
         </Text>
         <Pressable style={styles.button} onPress={() => navigation.navigate('History')}>

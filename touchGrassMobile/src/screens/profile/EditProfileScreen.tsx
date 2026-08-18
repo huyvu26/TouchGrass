@@ -148,7 +148,7 @@ export function EditProfileScreen({navigation}: Props) {
               style={styles.cameraButton}
               onPress={() => Alert.alert(
                 'Ảnh đại diện',
-                'Backend hiện chưa có API tải ảnh đại diện từ thiết bị.',
+                'Tính năng tải ảnh đại diện từ thiết bị hiện chưa được hỗ trợ.',
               )}>
               <Camera size={14} color="#FFFFFF" />
             </Pressable>

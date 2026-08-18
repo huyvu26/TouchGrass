@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -11,6 +11,8 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
+import {getPendingLockedApp} from '../../services/appControlService';
+import type {PendingLockedApp} from '../../native/appControl';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
@@ -18,6 +20,12 @@ type Props = NativeStackScreenProps<
 >;
 
 export function AppLockScreen({navigation}: Props) {
+  const [pendingApp, setPendingApp] = useState<PendingLockedApp | null>(null);
+
+  useEffect(() => {
+    getPendingLockedApp().then(setPendingApp).catch(() => setPendingApp(null));
+  }, []);
+
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.backgroundPattern}>
@@ -44,17 +52,25 @@ export function AppLockScreen({navigation}: Props) {
           </View>
         </View>
 
-        <Text style={styles.title}>Bạn đã hết thời gian!</Text>
+        <Text style={styles.title}>Ứng dụng đang bị khóa</Text>
         <Text style={styles.subtitle}>
-          Ứng dụng này đã đạt giới hạn bạn thiết lập.{`\n`}
-          Touch Grass dùng Usage Access để tính thời gian và Accessibility để phát hiện ứng dụng đang mở.
+          {pendingApp?.appName ?? 'Ứng dụng này'} nằm trong danh sách bạn đã chọn.{`\n`}
+          Hãy dùng Leaf Point để mua thời gian sử dụng tạm thời.
         </Text>
+
+        {pendingApp ? (
+          <Pressable
+            style={styles.unlockButton}
+            onPress={() => navigation.navigate('AppLimit', pendingApp)}>
+            <Text style={styles.unlockButtonText}>Dùng Leaf Point để mở khóa</Text>
+          </Pressable>
+        ) : null}
 
         <Pressable
           style={styles.taskButton}
           onPress={() => navigation.navigate('TaskHub')}>
           <Text style={styles.taskButtonText}>
-            Chọn nhiệm vụ để nhận thời gian mở khóa
+            Làm nhiệm vụ để nhận Leaf Point
           </Text>
         </Pressable>
 
@@ -97,6 +113,8 @@ const styles = StyleSheet.create({
   subtitle: {marginTop: 9, marginBottom: 26, color: 'rgba(255,255,255,0.68)', fontSize: 15, lineHeight: 23, textAlign: 'center'},
   taskButton: {width: '100%', height: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 28, backgroundColor: colors.lime, shadowColor: colors.lime, shadowOpacity: 0.32, shadowRadius: 14, elevation: 5},
   taskButtonText: {color: colors.primary, fontSize: 15, fontWeight: '800'},
+  unlockButton: {width: '100%', height: 56, marginBottom: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.lime, borderRadius: 28},
+  unlockButtonText: {color: colors.lime, fontSize: 15, fontWeight: '800'},
   safetyText: {marginTop: 18, color: 'rgba(255,255,255,0.58)', fontSize: 12, lineHeight: 18, textAlign: 'center'},
   savedRow: {marginTop: 20, flexDirection: 'row', alignItems: 'center', columnGap: 8},
   savedText: {color: 'rgba(255,255,255,0.5)', fontSize: 12},

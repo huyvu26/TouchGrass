@@ -4,6 +4,7 @@ import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.content.pm.ApplicationInfo
 import android.provider.Settings
 import android.os.Build
@@ -28,9 +29,17 @@ class UsageStatsModule(
   @ReactMethod
   fun openUsageAccessSettings(promise: Promise) {
     try {
-      reactContext.startActivity(
-        Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-      )
+      val appIntent = Intent(
+        Settings.ACTION_USAGE_ACCESS_SETTINGS,
+        Uri.parse("package:${reactContext.packageName}"),
+      ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      try {
+        reactContext.startActivity(appIntent)
+      } catch (_: Exception) {
+        reactContext.startActivity(
+          Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+      }
       promise.resolve(null)
     } catch (error: Exception) {
       promise.reject("USAGE_SETTINGS_ERROR", error)

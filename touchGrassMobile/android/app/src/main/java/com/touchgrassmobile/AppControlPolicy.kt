@@ -1,14 +1,10 @@
 package com.touchgrassmobile
 
-import android.app.AppOpsManager
-import android.app.usage.UsageStatsManager
-import android.app.usage.UsageEvents
 import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
 import android.telecom.TelecomManager
 import org.json.JSONArray
-import java.util.Calendar
 
 object AppControlPolicy {
   const val PREFS_NAME = "touch_grass_app_control"
@@ -22,8 +18,6 @@ object AppControlPolicy {
   data class Decision(
     val shouldLock: Boolean,
     val appName: String = "Ứng dụng",
-    val usedMinutes: Int = 0,
-    val limitMinutes: Int = 0,
   )
 
   fun evaluate(context: Context, packageName: String): Decision {
@@ -34,8 +28,6 @@ object AppControlPolicy {
     if (prefs.getLong(UNLOCK_PREFIX + packageName, 0L) > System.currentTimeMillis()) {
       return Decision(false)
     }
-    if (!hasUsageAccess(context)) return Decision(false)
-
     val rules = try {
       JSONArray(prefs.getString(KEY_RULES, "[]") ?: "[]")
     } catch (_: Exception) {
@@ -44,15 +36,9 @@ object AppControlPolicy {
     for (index in 0 until rules.length()) {
       val rule = rules.optJSONObject(index) ?: continue
       if (rule.optString("packageName") != packageName || !rule.optBoolean("enabled", false)) continue
-      if (!isScheduleActive(rule)) return Decision(false)
-      val limit = rule.optInt("dailyLimitMinutes", 0)
-      if (limit <= 0) return Decision(false)
-      val used = getTodayUsageMinutes(context, packageName)
       return Decision(
-        shouldLock = used >= limit,
+        shouldLock = true,
         appName = rule.optString("appName", packageName),
-        usedMinutes = used,
-        limitMinutes = limit,
       )
     }
     return Decision(false)
@@ -124,61 +110,4 @@ object AppControlPolicy {
       packageName.contains("devicepolicy")
   }
 
-  private fun hasUsageAccess(context: Context): Boolean {
-    val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-    return appOps.checkOpNoThrow(
-      AppOpsManager.OPSTR_GET_USAGE_STATS,
-      android.os.Process.myUid(),
-      context.packageName,
-    ) == AppOpsManager.MODE_ALLOWED
-  }
-
-  private fun getTodayUsageMinutes(context: Context, packageName: String): Int {
-    val calendar = Calendar.getInstance().apply {
-      set(Calendar.HOUR_OF_DAY, 0)
-      set(Calendar.MINUTE, 0)
-      set(Calendar.SECOND, 0)
-      set(Calendar.MILLISECOND, 0)
-    }
-    val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-    val now = System.currentTimeMillis()
-    val events = manager.queryEvents(calendar.timeInMillis, now)
-    val event = UsageEvents.Event()
-    var foregroundAt: Long? = null
-    var totalMs = 0L
-    while (events.hasNextEvent()) {
-      events.getNextEvent(event)
-      if (event.packageName != packageName) continue
-      when (event.eventType) {
-        UsageEvents.Event.MOVE_TO_FOREGROUND,
-        UsageEvents.Event.ACTIVITY_RESUMED -> if (foregroundAt == null) {
-          foregroundAt = event.timeStamp.coerceAtLeast(calendar.timeInMillis)
-        }
-        UsageEvents.Event.MOVE_TO_BACKGROUND,
-        UsageEvents.Event.ACTIVITY_PAUSED -> foregroundAt?.let { startedAt ->
-          if (event.timeStamp > startedAt) totalMs += event.timeStamp - startedAt
-          foregroundAt = null
-        }
-      }
-    }
-    foregroundAt?.let { startedAt ->
-      if (now > startedAt) totalMs += now - startedAt
-    }
-    return (totalMs / 60_000L).toInt()
-  }
-
-  private fun isScheduleActive(rule: org.json.JSONObject): Boolean {
-    val now = Calendar.getInstance()
-    val mondayFirstDay = (now.get(Calendar.DAY_OF_WEEK) + 5) % 7
-    val days = rule.optJSONArray("activeDays") ?: return false
-    var activeDay = false
-    for (index in 0 until days.length()) {
-      if (days.optInt(index, -1) == mondayFirstDay) activeDay = true
-    }
-    if (!activeDay) return false
-    val current = "%02d:%02d".format(now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE))
-    val start = rule.optString("startTime", "00:00")
-    val end = rule.optString("endTime", "23:59")
-    return current >= start && current <= end
-  }
 }

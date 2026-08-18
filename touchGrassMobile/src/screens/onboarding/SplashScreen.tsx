@@ -188,7 +188,7 @@ export function SplashScreen({navigation}: Props) {
               <Text style={styles.retryText}>Thử lại</Text>
             </Pressable>
             <Pressable style={styles.serverButton} onPress={openServerConfig}>
-              <Text style={styles.serverButtonText}>Đổi máy chủ backend</Text>
+              <Text style={styles.serverButtonText}>Đổi địa chỉ kết nối</Text>
             </Pressable>
           </View>
         ) : null}
@@ -201,9 +201,9 @@ export function SplashScreen({navigation}: Props) {
         onRequestClose={() => setShowServerConfig(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.serverCard}>
-            <Text style={styles.serverTitle}>Máy chủ backend</Text>
+            <Text style={styles.serverTitle}>Địa chỉ kết nối</Text>
             <Text style={styles.serverDescription}>
-              Emulator dùng 10.0.2.2. Điện thoại thật phải dùng IP LAN của máy tính đang chạy backend.
+              Máy ảo dùng 10.0.2.2. Điện thoại thật dùng địa chỉ LAN của máy tính cung cấp dịch vụ.
             </Text>
             <TextInput
               value={apiOrigin}

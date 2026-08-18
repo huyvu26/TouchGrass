@@ -166,7 +166,7 @@ export function HomeScreen({navigation}: Props) {
           </Text>
           <Text style={styles.heroDescription}>
             {activeTask
-              ? 'Tiến độ chính thức được backend xác minh theo loại nhiệm vụ.'
+              ? 'Tiến độ được hệ thống xác minh theo từng loại nhiệm vụ.'
               : 'Chọn hoạt động phù hợp và nhận phần thưởng sau khi hoàn thành.'}
           </Text>
           <Pressable style={styles.primaryButton} onPress={continueActiveTask}>

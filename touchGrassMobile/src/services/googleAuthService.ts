@@ -8,12 +8,13 @@ import type {AuthResponse} from '../types/auth';
 import {loginWithGoogle} from './authService';
 
 let configured = false;
+let signInRequest: Promise<AuthResponse | null> | null = null;
 
 export function isGoogleAuthConfigured(): boolean {
   return GOOGLE_WEB_CLIENT_ID.trim().length > 0;
 }
 
-export async function signInWithGoogle(): Promise<AuthResponse | null> {
+async function performGoogleSignIn(): Promise<AuthResponse | null> {
   if (!isGoogleAuthConfigured()) {
     throw new Error('Chưa cấu hình GOOGLE_WEB_CLIENT_ID cho ứng dụng Android.');
   }
@@ -27,4 +28,15 @@ export async function signInWithGoogle(): Promise<AuthResponse | null> {
   const idToken = response.data.idToken;
   if (!idToken) throw new Error('Google không trả về ID token. Hãy kiểm tra Web Client ID.');
   return loginWithGoogle(idToken);
+}
+
+export function signInWithGoogle(): Promise<AuthResponse | null> {
+  if (signInRequest) {
+    return signInRequest;
+  }
+
+  signInRequest = performGoogleSignIn().finally(() => {
+    signInRequest = null;
+  });
+  return signInRequest;
 }

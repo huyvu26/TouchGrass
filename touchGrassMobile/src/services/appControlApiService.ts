@@ -4,6 +4,7 @@ import type {
   AppControlRuleResponse,
   TemporaryUnlockResponse,
   TemporaryUnlockStatusResponse,
+  UnlockOptionsResponse,
 } from '../types/appControl';
 import {apiRequest} from './apiClient';
 
@@ -24,14 +25,7 @@ export function updateAppControlRule(
 ): Promise<AppControlRuleResponse> {
   return apiRequest<AppControlRuleResponse>(`/app-control/rules/${encodeURIComponent(id)}`, {
     method: 'PATCH',
-    body: {
-      appName: rule.appName,
-      enabled: rule.enabled,
-      dailyLimitMinutes: rule.dailyLimitMinutes,
-      activeDays: rule.activeDays,
-      startTime: rule.startTime,
-      endTime: rule.endTime,
-    },
+    body: {enabled: rule.enabled},
   });
 }
 
@@ -55,15 +49,18 @@ export async function deleteAppControlRuleByPackage(packageName: string): Promis
 
 export function createTemporaryUnlock(
   packageName: string,
-  minutes: number,
-  sourceUserTaskId: string,
+  optionId: string,
   operationKey: string,
 ): Promise<TemporaryUnlockResponse> {
   return apiRequest<TemporaryUnlockResponse>('/app-control/unlock', {
     method: 'POST',
     headers: {'Idempotency-Key': operationKey},
-    body: {packageName, minutes, sourceUserTaskId},
+    body: {packageName, optionId},
   });
+}
+
+export function getUnlockOptions(): Promise<UnlockOptionsResponse> {
+  return apiRequest<UnlockOptionsResponse>('/app-control/unlock-options');
 }
 
 export function getTemporaryUnlockStatus(packageName: string): Promise<TemporaryUnlockStatusResponse> {

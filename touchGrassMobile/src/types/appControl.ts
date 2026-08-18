@@ -11,18 +11,29 @@ export interface AppControlRuleListResponse {
 }
 
 export interface TemporaryUnlockResponse {
-  sessionId: string;
+  id: string;
   packageName: string;
+  minutes: number;
+  leafPointsSpent: number;
+  remainingLeafPoints: number;
   startedAt: string;
   expiresAt: string;
-  minutesSpent: number;
-  status: 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
-  remainingBalance: number;
   alreadyProcessed: boolean;
 }
 
 export interface TemporaryUnlockStatusResponse {
-  active: boolean;
+  packageName: string;
+  unlocked: boolean;
   expiresAt: string | null;
   remainingSeconds: number;
+}
+
+export interface UnlockOption {
+  id: string;
+  minutes: number;
+  leafPointCost: number;
+}
+
+export interface UnlockOptionsResponse {
+  items: UnlockOption[];
 }

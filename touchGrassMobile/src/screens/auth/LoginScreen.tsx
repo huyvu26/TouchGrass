@@ -3,6 +3,7 @@ import {
   login as loginUser,
 } from '../../services/authService';
 import {
+  isPermissionSetupComplete,
   saveAccessToken,
 } from '../../storage/authStorage';
 import {
@@ -107,6 +108,14 @@ export function LoginScreen({ navigation }: Props) {
     return Object.keys(newErrors).length === 0;
   }
 
+  async function resetAfterLogin() {
+    const permissionSetupComplete = await isPermissionSetupComplete();
+    navigation.reset({
+      index: 0,
+      routes: [{name: permissionSetupComplete ? 'Home' : 'Permission'}],
+    });
+  }
+
   async function handleLogin() {
     if (!validateForm() || isSubmitting) {
       return;
@@ -132,10 +141,7 @@ export function LoginScreen({ navigation }: Props) {
         [
           {
             text: 'Tiếp tục',
-            onPress: () => navigation.reset({
-              index: 0,
-              routes: [{name: 'Permission'}],
-            }),
+            onPress: resetAfterLogin,
           },
         ],
       );
@@ -163,7 +169,7 @@ export function LoginScreen({ navigation }: Props) {
       if (!authResponse) return;
       await saveAccessToken(authResponse.accessToken);
       setUser(authResponse.user);
-      navigation.reset({index: 0, routes: [{name: 'Permission'}]});
+      await resetAfterLogin();
     } catch (error) {
       Alert.alert('Không thể đăng nhập Google', error instanceof Error ? error.message : 'Vui lòng thử lại.');
     } finally {
@@ -205,7 +211,7 @@ export function LoginScreen({ navigation }: Props) {
 
           <View style={styles.form}>
             {showServerConfig ? <View style={styles.field}>
-              <Text style={styles.label}>Máy chủ backend</Text>
+              <Text style={styles.label}>Địa chỉ kết nối</Text>
               <TextInput
                 style={styles.input}
                 value={apiOrigin}

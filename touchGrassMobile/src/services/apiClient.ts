@@ -96,7 +96,7 @@ export async function apiRequest<T>(
     });
   } catch {
     throw new ApiError(
-      'Không thể kết nối với máy chủ. Hãy kiểm tra mạng và backend.',
+      'Không thể kết nối với dịch vụ. Hãy kiểm tra mạng rồi thử lại.',
       0,
     );
   }

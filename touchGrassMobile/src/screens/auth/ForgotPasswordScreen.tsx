@@ -55,7 +55,7 @@ export function ForgotPasswordScreen({navigation}: Props) {
           </Pressable>
           <View style={styles.icon}><Mail size={30} color={colors.primaryButton} /></View>
           <Text style={styles.title}>Quên mật khẩu?</Text>
-          <Text style={styles.subtitle}>Nhập email tài khoản. Backend sẽ gửi mã hoặc liên kết đặt lại mật khẩu nếu tài khoản tồn tại.</Text>
+          <Text style={styles.subtitle}>Nhập email tài khoản. Chúng tôi sẽ gửi mã hoặc liên kết đặt lại mật khẩu nếu tài khoản tồn tại.</Text>
           <Text style={styles.label}>Địa chỉ email</Text>
           <TextInput
             value={email}

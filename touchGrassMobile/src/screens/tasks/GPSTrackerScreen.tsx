@@ -98,17 +98,19 @@ async function ensureLocationServicesEnabled(): Promise<void> {
   if (!(await deviceSettings.isLocationServicesEnabled())) {
     throw new Error('LOCATION_SERVICES_DISABLED');
   }
-  return new Promise((resolve, reject) => {
-    Geolocation.getCurrentPosition(
-      () => resolve(),
-      error => reject(error),
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 10000,
-      },
-    );
-  });
+}
+
+function getLocationErrorMessage(code: number): string {
+  if (code === 1) {
+    return 'Quyền vị trí đã bị tắt. Hãy cấp Vị trí chính xác rồi thử lại.';
+  }
+  if (code === 2) {
+    return 'Chưa nhận được tín hiệu GPS. Hãy bật GPS và thử ở nơi thoáng hơn.';
+  }
+  if (code === 3) {
+    return 'GPS đang mất nhiều thời gian để xác định vị trí. Ứng dụng vẫn tiếp tục chờ tín hiệu.';
+  }
+  return 'Không thể lấy vị trí GPS.';
 }
 
 function formatDuration(totalSeconds: number): string {
@@ -205,7 +207,12 @@ export function GPSTrackerScreen({navigation, route}: Props) {
           return;
         }
 
-        setFailureMessage(error.message || 'Không thể lấy vị trí GPS.');
+        if (error.code === 1) {
+          setSettingsTarget('permission');
+        } else if (error.code === 2) {
+          setSettingsTarget('location');
+        }
+        setFailureMessage(getLocationErrorMessage(error.code));
       },
       {
         enableHighAccuracy: true,
@@ -246,7 +253,7 @@ export function GPSTrackerScreen({navigation, route}: Props) {
       } catch {
         setSettingsTarget('location');
         throw new Error(
-          'Không lấy được vị trí. Hãy bật Dịch vụ vị trí/GPS rồi thử lại.',
+          'Dịch vụ vị trí/GPS đang tắt. Hãy bật GPS rồi thử lại.',
         );
       }
 
@@ -479,7 +486,7 @@ export function GPSTrackerScreen({navigation, route}: Props) {
             <Text style={styles.busyText}>
               {phase === 'initializing'
                 ? 'Đang bắt đầu phiên GPS...'
-                : 'Backend đang xác minh quãng đường...'}
+                : 'Đang xác minh quãng đường...'}
             </Text>
           </View>
         ) : phase === 'paused' ? (

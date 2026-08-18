@@ -49,9 +49,17 @@ class AccessibilityMonitorModule(
   @ReactMethod
   fun openAccessibilitySettings(promise: Promise) {
     try {
-      reactContext.startActivity(
-        Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-      )
+      val expected = ComponentName(reactContext, AppMonitorAccessibilityService::class.java)
+      val detailsIntent = Intent("android.settings.ACCESSIBILITY_DETAILS_SETTINGS")
+        .putExtra(Intent.EXTRA_COMPONENT_NAME, expected)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      try {
+        reactContext.startActivity(detailsIntent)
+      } catch (_: Exception) {
+        reactContext.startActivity(
+          Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+      }
       promise.resolve(null)
     } catch (error: Exception) {
       promise.reject("ACCESSIBILITY_SETTINGS_ERROR", error)

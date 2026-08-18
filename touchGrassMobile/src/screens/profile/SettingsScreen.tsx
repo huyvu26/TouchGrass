@@ -68,7 +68,7 @@ export function SettingsScreen({navigation}: Props) {
   function confirmDeleteAppControlData() {
     Alert.alert(
       'Xóa dữ liệu App Control?',
-      'Toàn bộ ứng dụng đã chọn, giới hạn và phiên mở khóa sẽ bị xóa trên backend và thiết bị này. Tài khoản và lịch sử nhiệm vụ không bị xóa.',
+      'Toàn bộ ứng dụng đã chọn, giới hạn và phiên mở khóa sẽ bị xóa khỏi tài khoản và thiết bị này. Tài khoản và lịch sử nhiệm vụ không bị xóa.',
       [
         {text: 'Hủy', style: 'cancel'},
         {
@@ -80,7 +80,7 @@ export function SettingsScreen({navigation}: Props) {
             try {
               await deleteAndClearAppControlData();
               setAppControl(false);
-              Alert.alert('Đã xóa', 'Dữ liệu App Control đã được xóa khỏi backend và thiết bị.');
+              Alert.alert('Đã xóa', 'Dữ liệu App Control đã được xóa khỏi tài khoản và thiết bị.');
             } catch (error) {
               Alert.alert(
                 'Không thể xóa dữ liệu',
@@ -126,7 +126,7 @@ export function SettingsScreen({navigation}: Props) {
         <Text style={styles.sectionLabel}>QUYỀN VÀ RIÊNG TƯ</Text>
         <View style={styles.section}>
           <Row label="Quản lý quyền truy cập" subtitle="Camera, GPS, Usage Access và Accessibility" onPress={() => navigation.navigate('Permission')} />
-          <Row label="Dữ liệu App Control" subtitle="Quy tắc được đồng bộ với backend và lưu bản sao trên thiết bị" />
+          <Row label="Dữ liệu App Control" subtitle="Quy tắc được đồng bộ với tài khoản và lưu trên thiết bị" />
           <Row
             label={deletingAppControl ? 'Đang xóa dữ liệu…' : 'Xóa dữ liệu App Control'}
             subtitle="Không xóa tài khoản hoặc lịch sử nhiệm vụ"

@@ -206,11 +206,11 @@ export function ScreenTimerScreen({navigation, route}: Props) {
 
         <Text style={styles.instruction}>
           {phase === 'ready'
-            ? 'Nhấn nút nguồn của thiết bị để tắt màn hình. Sau khi đủ thời gian, bật màn hình lại; ứng dụng sẽ tự gửi hai thời điểm cho backend.'
+            ? 'Nhấn nút nguồn để tắt màn hình. Sau khi đủ thời gian, hãy bật màn hình lại để ứng dụng tự xác minh.'
             : phase === 'screenOff'
               ? 'Giữ màn hình tắt cho đến khi đạt thời gian yêu cầu.'
               : phase === 'verifying'
-                ? 'Backend đang tính thời lượng từ sự kiện Android và kiểm tra kết quả.'
+                ? 'Hệ thống đang tính thời lượng và kiểm tra kết quả.'
                 : phase === 'failed'
                   ? `Bạn đã tắt màn hình ${formatDuration(result?.durationSeconds ?? 0)}, chưa đủ ${formatDuration(targetSeconds)}.`
                   : phase === 'error'
@@ -229,20 +229,20 @@ export function ScreenTimerScreen({navigation, route}: Props) {
           </View>
           <View style={styles.stepRow}>
             <ShieldCheck size={20} color={colors.primaryButton} />
-            <Text style={styles.stepText}>Backend tự tính và xác minh thời lượng.</Text>
+            <Text style={styles.stepText}>Thời lượng sẽ được tự động tính và xác minh.</Text>
           </View>
         </View>
 
         {result?.alreadyProcessed ? (
           <Text style={styles.processedText}>
-            Phiên đã được xử lý trước đó; ứng dụng dùng nguyên kết quả backend.
+            Phiên đã được xử lý trước đó; ứng dụng đang hiển thị kết quả đã lưu.
           </Text>
         ) : null}
 
         {result ? (
           <View style={styles.statusCard}>
             <Text style={styles.statusText}>
-              Trạng thái backend: {result.verificationStatus}
+              Trạng thái xác minh: {result.verificationStatus}
             </Text>
             <Text style={styles.statusText}>
               Tiến độ: {result.progress}/{result.targetValue} phút

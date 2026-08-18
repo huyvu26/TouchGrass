@@ -15,45 +15,12 @@ import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
 import {claimUserTaskReward} from '../../services/userTaskService';
 import type {ClaimRewardResponse} from '../../types/userTask';
-import {
-  getPendingLockedApp,
-  setTemporaryUnlockUntil,
-} from '../../services/appControlService';
-import {createTemporaryUnlock} from '../../services/appControlApiService';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Reward'>;
 
 export function RewardScreen({navigation, route}: Props) {
   const [claiming, setClaiming] = useState(false);
-  const [syncingUnlock, setSyncingUnlock] = useState(false);
   const [claim, setClaim] = useState<ClaimRewardResponse | null>(null);
-  const [unlockRetry, setUnlockRetry] = useState<{packageName: string; minutes: number} | null>(null);
-
-  async function syncTemporaryUnlock(packageName: string, minutes: number, showSuccess = false) {
-    if (syncingUnlock) return;
-    setSyncingUnlock(true);
-    try {
-      const unlock = await createTemporaryUnlock(
-        packageName,
-        minutes,
-        route.params.userTaskId,
-        `reward-${route.params.userTaskId}-${packageName}`,
-      );
-      await setTemporaryUnlockUntil(packageName, unlock.expiresAt);
-      setUnlockRetry(null);
-      if (showSuccess) {
-        Alert.alert('Đã đồng bộ mở khóa', 'Bạn có thể mở lại ứng dụng đang bị giới hạn đến thời điểm backend cho phép.');
-      }
-    } catch (error) {
-      setUnlockRetry({packageName, minutes});
-      Alert.alert(
-        'Đã nhận thưởng nhưng chưa đồng bộ mở khóa',
-        error instanceof Error ? error.message : 'Hãy bấm “Thử đồng bộ lại”.',
-      );
-    } finally {
-      setSyncingUnlock(false);
-    }
-  }
 
   async function claimReward() {
     if (claiming || claim) {
@@ -62,15 +29,8 @@ export function RewardScreen({navigation, route}: Props) {
 
     setClaiming(true);
     try {
-      const pendingApp = await getPendingLockedApp();
       const result = await claimUserTaskReward(route.params.userTaskId);
       setClaim(result);
-      if (pendingApp && result.reward.unlockMinutes > 0) {
-        await syncTemporaryUnlock(
-          pendingApp.packageName,
-          result.reward.unlockMinutes,
-        );
-      }
     } catch (error) {
       Alert.alert(
         'Không thể nhận phần thưởng',
@@ -85,7 +45,6 @@ export function RewardScreen({navigation, route}: Props) {
     ? [
         {icon: '⚡', value: `+${claim.reward.xp} XP`, label: 'Kinh nghiệm', color: colors.lime},
         {icon: '🍃', value: `+${claim.reward.leafPoints} LP`, label: 'Leaf Points', color: '#FFFFFF'},
-        {icon: '🔓', value: `+${claim.reward.unlockMinutes} phút`, label: 'Mở khóa', color: '#BDE8FF'},
       ]
     : [];
 
@@ -142,7 +101,7 @@ export function RewardScreen({navigation, route}: Props) {
         <Text style={styles.subtitle}>
           {claim
             ? 'Phần thưởng đã được cập nhật vào tài khoản của bạn.'
-            : 'Bấm nhận thưởng để cập nhật tài khoản từ backend.'}
+            : 'Bấm nhận thưởng để cập nhật phần thưởng vào tài khoản.'}
         </Text>
 
         {claim ? (
@@ -174,30 +133,16 @@ export function RewardScreen({navigation, route}: Props) {
                   <Text style={styles.profileLabel}>Leaf Points</Text>
                   <Text style={styles.profileValue}>{claim.profile.leafPoints}</Text>
                 </View>
-                <View style={styles.profileItem}>
-                  <Text style={styles.profileLabel}>Phút mở khóa</Text>
-                  <Text style={styles.profileValue}>{claim.profile.unlockMinutesBalance}</Text>
-                </View>
               </View>
             </View>
 
-            {unlockRetry ? (
-              <Pressable
-                disabled={syncingUnlock}
-                style={[styles.retryUnlockButton, syncingUnlock && styles.disabled]}
-                onPress={() => syncTemporaryUnlock(unlockRetry.packageName, unlockRetry.minutes, true)}>
-                {syncingUnlock
-                  ? <ActivityIndicator color={colors.lime} />
-                  : <Text style={styles.retryUnlockText}>Thử đồng bộ lại thời gian mở khóa</Text>}
-              </Pressable>
-            ) : null}
           </>
         ) : (
           <View style={styles.pendingCard}>
             <Text style={styles.pendingIcon}>🎁</Text>
             <Text style={styles.pendingTitle}>Phần thưởng đang chờ nhận</Text>
             <Text style={styles.pendingText}>
-              Giá trị chính xác sẽ được lấy từ backend sau khi bạn xác nhận.
+              Phần thưởng chính xác sẽ hiển thị sau khi bạn xác nhận.
             </Text>
           </View>
         )}
@@ -263,7 +208,5 @@ const styles = StyleSheet.create({
   claimText: {color: colors.primary, fontSize: 16, fontWeight: '800'},
   homeButton: {width: '100%', height: 48, marginTop: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.08)'},
   homeText: {color: 'rgba(255,255,255,0.82)', fontSize: 14, fontWeight: '700'},
-  retryUnlockButton: {width: '100%', height: 46, marginBottom: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.lime, borderRadius: 23},
-  retryUnlockText: {color: colors.lime, fontSize: 12, fontWeight: '700'},
   disabled: {opacity: 0.65},
 });

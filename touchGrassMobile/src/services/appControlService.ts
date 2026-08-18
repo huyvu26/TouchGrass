@@ -6,7 +6,6 @@ import {
   saveAppLimitRule,
   type AppLimitRule,
 } from '../storage/appControlStorage';
-import {getTodayUsage} from './usageStatsService';
 import {isProtectedPackage} from './protectedPackages';
 import {appControlNative} from '../native/appControl';
 import {
@@ -18,30 +17,15 @@ import {
 
 export interface AppLimitEvaluation {
   shouldWarn: boolean;
-  usedMinutes: number;
-  reason: 'PROTECTED' | 'NO_RULE' | 'DISABLED' | 'OUTSIDE_SCHEDULE' | 'UNDER_LIMIT' | 'LIMIT_REACHED';
-}
-
-function isWithinSchedule(rule: AppLimitRule, date: Date): boolean {
-  const mondayFirstDay = (date.getDay() + 6) % 7;
-  if (!rule.activeDays.includes(mondayFirstDay)) return false;
-  const current = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-  return current >= rule.startTime && current <= rule.endTime;
+  reason: 'PROTECTED' | 'NO_RULE' | 'DISABLED' | 'LOCKED';
 }
 
 export async function evaluateAppLimit(packageName: string): Promise<AppLimitEvaluation> {
-  if (isProtectedPackage(packageName)) return {shouldWarn: false, usedMinutes: 0, reason: 'PROTECTED'};
+  if (isProtectedPackage(packageName)) return {shouldWarn: false, reason: 'PROTECTED'};
   const rule = (await getAppLimitRules()).find(item => item.packageName === packageName);
-  if (!rule) return {shouldWarn: false, usedMinutes: 0, reason: 'NO_RULE'};
-  if (!rule.enabled) return {shouldWarn: false, usedMinutes: 0, reason: 'DISABLED'};
-  if (!isWithinSchedule(rule, new Date())) return {shouldWarn: false, usedMinutes: 0, reason: 'OUTSIDE_SCHEDULE'};
-  const usage = (await getTodayUsage()).find(item => item.packageName === packageName);
-  const usedMinutes = Math.floor((usage?.totalTimeInForegroundMs ?? 0) / 60000);
-  return {
-    shouldWarn: usedMinutes >= rule.dailyLimitMinutes,
-    usedMinutes,
-    reason: usedMinutes >= rule.dailyLimitMinutes ? 'LIMIT_REACHED' : 'UNDER_LIMIT',
-  };
+  if (!rule) return {shouldWarn: false, reason: 'NO_RULE'};
+  if (!rule.enabled) return {shouldWarn: false, reason: 'DISABLED'};
+  return {shouldWarn: true, reason: 'LOCKED'};
 }
 
 export async function syncAppControlRules(): Promise<void> {
@@ -62,10 +46,6 @@ export async function saveAndSyncAppControlRule(rule: AppLimitRule): Promise<voi
     packageName: remote.packageName,
     appName: remote.appName,
     enabled: remote.enabled,
-    dailyLimitMinutes: remote.dailyLimitMinutes,
-    activeDays: remote.activeDays,
-    startTime: remote.startTime,
-    endTime: remote.endTime,
   };
   await saveAppLimitRule(stored);
   await syncAppControlRules();

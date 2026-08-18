@@ -17,6 +17,7 @@ const linking: LinkingOptions<AuthStackParamList> = {
   config: {
     screens: {
       ResetPassword: 'reset-password',
+      AppLock: 'app-lock',
     },
   },
 };

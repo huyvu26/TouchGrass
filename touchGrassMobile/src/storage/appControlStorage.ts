@@ -6,10 +6,6 @@ export interface AppLimitRule {
   packageName: string;
   appName: string;
   enabled: boolean;
-  dailyLimitMinutes: number;
-  activeDays: number[];
-  startTime: string;
-  endTime: string;
 }
 
 export async function getAppLimitRules(): Promise<AppLimitRule[]> {

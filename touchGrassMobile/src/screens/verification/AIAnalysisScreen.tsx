@@ -144,7 +144,7 @@ export function AIAnalysisScreen({navigation, route}: Props) {
             </Text>
             <Text style={styles.statusSubtitle}>
               {phase === 'loading'
-                ? 'Backend đang đối chiếu nhãn ML Kit với yêu cầu nhiệm vụ.'
+                ? 'Hệ thống đang đối chiếu ảnh với yêu cầu nhiệm vụ.'
                 : phase === 'partial'
                   ? `Đã xác minh ${result?.acceptedPhotoCount ?? 0}/${result?.requiredPhotoCount ?? 0} ảnh.`
                   : phase === 'failed'
@@ -166,7 +166,7 @@ export function AIAnalysisScreen({navigation, route}: Props) {
           ))}
           {result?.alreadyProcessed ? (
             <Text style={styles.processedText}>
-              Ảnh này đã được xử lý trước đó; tiến độ hiển thị do backend trả về.
+              Ảnh này đã được xử lý trước đó; ứng dụng đang hiển thị kết quả đã lưu.
             </Text>
           ) : null}
         </View>
@@ -196,7 +196,7 @@ export function AIAnalysisScreen({navigation, route}: Props) {
         <View style={styles.privacyCard}>
           <Shield size={16} color={colors.primaryButton} />
           <Text style={styles.privacyText}>
-            Ảnh được gửi để backend xác minh và không được dùng để tự cộng tiến độ ở frontend.
+            Ảnh chỉ được dùng để xác minh nhiệm vụ. Tiến độ chỉ cập nhật sau khi ảnh đạt yêu cầu.
           </Text>
         </View>
       </ScrollView>

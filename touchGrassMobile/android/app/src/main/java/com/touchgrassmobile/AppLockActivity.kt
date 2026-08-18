@@ -6,6 +6,7 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
+import android.net.Uri
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -34,8 +35,6 @@ class AppLockActivity : Activity() {
 
   private fun buildContent(): View {
     val appName = intent.getStringExtra(EXTRA_APP_NAME) ?: lockedPackage
-    val used = intent.getIntExtra(EXTRA_USED_MINUTES, 0)
-    val limit = intent.getIntExtra(EXTRA_LIMIT_MINUTES, 0)
     val padding = dp(24)
 
     return ScrollView(this).apply {
@@ -45,21 +44,18 @@ class AppLockActivity : Activity() {
         gravity = Gravity.CENTER_HORIZONTAL
         setPadding(padding, dp(56), padding, dp(32))
         addView(text("🌱", 60, Color.WHITE, Typeface.NORMAL))
-        addView(text("Đã đạt giới hạn", 27, Color.WHITE, Typeface.BOLD).withMargins(top = 18))
+        addView(text("Ứng dụng đang bị khóa", 27, Color.WHITE, Typeface.BOLD).withMargins(top = 18))
         addView(text(appName, 20, Color.rgb(176, 242, 103), Typeface.BOLD).withMargins(top = 8))
-        addView(text("Bạn đã sử dụng $used phút hôm nay. Giới hạn hiện tại là $limit phút.", 15, Color.rgb(220, 232, 217), Typeface.NORMAL).withMargins(top = 12))
-        addView(text("Touch Grass chỉ khóa ứng dụng bạn đã chủ động chọn. Hãy hoàn thành một nhiệm vụ để nhận thời gian mở khóa.", 13, Color.rgb(190, 207, 186), Typeface.NORMAL).withMargins(top = 12, bottom = 28))
-        addView(button("Mở Touch Grass để làm nhiệm vụ", Color.rgb(176, 242, 103), Color.rgb(18, 61, 19)) {
-          startActivity(Intent(this@AppLockActivity, MainActivity::class.java).apply {
+        addView(text("Ứng dụng này nằm trong danh sách bạn đã chọn để hạn chế sử dụng.", 15, Color.rgb(220, 232, 217), Typeface.NORMAL).withMargins(top = 12))
+        addView(text("Hãy dùng Leaf Point để mua thời gian sử dụng tạm thời.", 13, Color.rgb(190, 207, 186), Typeface.NORMAL).withMargins(top = 12, bottom = 28))
+        addView(button("Mở Touch Grass", Color.rgb(176, 242, 103), Color.rgb(18, 61, 19)) {
+          startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("touchgrass://app-lock")).apply {
+            setPackage(this@AppLockActivity.packageName)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
           })
           finish()
         })
         addView(button("Về màn hình chính", Color.TRANSPARENT, Color.WHITE) { goHome() }.withMargins(top = 12))
-        addView(button("Tạm bỏ qua 5 phút (thoát an toàn)", Color.TRANSPARENT, Color.rgb(255, 205, 120)) {
-          AppControlPolicy.setTemporaryUnlock(this@AppLockActivity, lockedPackage, 5)
-          finish()
-        }.withMargins(top = 12))
       })
     }
   }
@@ -103,7 +99,5 @@ class AppLockActivity : Activity() {
   companion object {
     const val EXTRA_PACKAGE = "package_name"
     const val EXTRA_APP_NAME = "app_name"
-    const val EXTRA_USED_MINUTES = "used_minutes"
-    const val EXTRA_LIMIT_MINUTES = "limit_minutes"
   }
 }

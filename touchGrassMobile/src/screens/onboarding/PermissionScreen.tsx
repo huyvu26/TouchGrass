@@ -18,7 +18,7 @@ import {VisionCamera} from 'react-native-vision-camera';
 
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
-import {markOnboardingComplete} from '../../storage/authStorage';
+import {markPermissionSetupComplete} from '../../storage/authStorage';
 import {accessibilityMonitor} from '../../native/accessibilityMonitor';
 import {deviceSettings} from '../../native/deviceSettings';
 import {
@@ -111,14 +111,17 @@ export function PermissionScreen({navigation}: Props) {
   );
 
   useEffect(() => {
-    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    let refreshTimers: ReturnType<typeof setTimeout>[] = [];
     const subscription = AppState.addEventListener('change', state => {
       if (state !== 'active') return;
-      refreshTimer = setTimeout(refresh, 300);
+      refreshTimers.forEach(clearTimeout);
+      refreshTimers = [250, 1000, 2000].map(delay =>
+        setTimeout(refresh, delay),
+      );
     });
     return () => {
       subscription.remove();
-      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimers.forEach(clearTimeout);
     };
   }, [refresh]);
 
@@ -173,7 +176,7 @@ export function PermissionScreen({navigation}: Props) {
   }
 
   async function finish() {
-    await markOnboardingComplete();
+    await markPermissionSetupComplete();
     navigation.reset({index: 0, routes: [{name: 'Home'}]});
   }
 

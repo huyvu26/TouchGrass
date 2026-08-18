@@ -85,13 +85,6 @@ export function AppManagementScreen({navigation}: Props) {
       setControlEnabled(false);
       return;
     }
-    if (!hasUsageAccess) {
-      Alert.alert('Cần Usage Access', 'Hãy cấp quyền đọc thời lượng sử dụng trước.', [
-        {text: 'Hủy', style: 'cancel'},
-        {text: 'Mở cài đặt', onPress: openUsageAccessSettings},
-      ]);
-      return;
-    }
     if (!hasAccessibility) {
       Alert.alert('Cần Accessibility', 'Hãy bật dịch vụ “Theo dõi ứng dụng Touch Grass” để phát hiện app đang mở.', [
         {text: 'Hủy', style: 'cancel'},
@@ -155,7 +148,7 @@ export function AppManagementScreen({navigation}: Props) {
     }
     Alert.alert(
       'Xác nhận chọn ứng dụng',
-      `Chỉ thêm ${app.appName} nếu bạn thực sự muốn Touch Grass khóa ứng dụng này khi vượt giới hạn.`,
+      `Sau khi chọn, ${app.appName} sẽ bị khóa ngay khi App Control đang bật. Bạn có thể dùng Leaf Point để mua thời gian sử dụng tạm thời.`,
       [
         {text: 'Hủy', style: 'cancel'},
         {
@@ -164,11 +157,12 @@ export function AppManagementScreen({navigation}: Props) {
             packageName: app.packageName,
             appName: app.appName,
             enabled: true,
-            dailyLimitMinutes: 30,
-            activeDays: [0, 1, 2, 3, 4, 5, 6],
-            startTime: '00:00',
-            endTime: '23:59',
-          }).then(load).catch(error => Alert.alert(
+          }).then(async () => {
+            if (hasAccessibility) {
+              await setAppControlEnabled(true);
+            }
+            await load();
+          }).catch(error => Alert.alert(
             'Không thể thêm giới hạn',
             error instanceof Error ? error.message : 'Vui lòng thử lại.',
           )),
@@ -199,7 +193,7 @@ export function AppManagementScreen({navigation}: Props) {
         <View style={styles.permissionInfo}>
           <Text style={styles.controlTitle}>Khóa ứng dụng đã chọn</Text>
           <Text style={styles.permissionText}>
-            {controlEnabled ? 'Đang hoạt động' : 'Đang tắt'} · Usage {hasUsageAccess ? 'OK' : 'chưa cấp'} · Accessibility {hasAccessibility ? 'OK' : 'chưa bật'}
+            {controlEnabled ? 'Đang hoạt động' : 'Đang tắt'} · Theo dõi ứng dụng {hasAccessibility ? 'OK' : 'chưa bật'} · Thống kê {hasUsageAccess ? 'OK' : 'chưa cấp'}
           </Text>
         </View>
         <ToggleSwitch value={controlEnabled} onValueChange={toggleAppControl} />
@@ -244,15 +238,15 @@ export function AppManagementScreen({navigation}: Props) {
         {!loading && filtered.length === 0 ? <Text style={styles.empty}>{filter === 'selected' ? 'Bạn chưa chọn ứng dụng nào.' : 'Không tìm thấy ứng dụng phù hợp.'}</Text> : null}
         {filtered.map(app => {
           const rule = ruleByPackage.get(app.packageName);
-          const usedMinutes = Math.floor((usageByPackage.get(app.packageName)?.totalTimeInForegroundMs ?? 0) / 60000);
-          const exceeded = Boolean(rule?.enabled && usedMinutes >= rule.dailyLimitMinutes);
           return (
             <View key={app.packageName} style={styles.appCard}>
               <View style={styles.appIcon}><Smartphone size={22} color={colors.primaryButton} /></View>
               <Pressable style={styles.appInfo} onPress={() => navigation.navigate('AppLimit', {packageName: app.packageName, appName: app.appName})}>
                 <Text style={styles.appName}>{app.appName}</Text>
                 <Text numberOfLines={1} style={styles.packageName}>{app.packageName}</Text>
-                <Text style={[styles.usage, exceeded && styles.exceeded]}>{formatUsage(app.packageName)}{rule ? ` · Giới hạn ${rule.dailyLimitMinutes} phút` : ''}</Text>
+                <Text style={[styles.usage, rule?.enabled && styles.exceeded]}>
+                  {formatUsage(app.packageName)}{rule ? rule.enabled ? ' · Đang khóa' : ' · Đã tạm tắt' : ''}
+                </Text>
               </Pressable>
               <Pressable
                 accessibilityRole="checkbox"

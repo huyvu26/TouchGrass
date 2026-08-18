@@ -7,6 +7,7 @@ const authStorage =
 
 const ACCESS_TOKEN_KEY = 'accessToken';
 const ONBOARDING_COMPLETE_KEY = 'onboardingComplete';
+const PERMISSION_SETUP_COMPLETE_KEY = 'permissionSetupComplete';
 
 export async function saveAccessToken(
   token: string,
@@ -33,4 +34,12 @@ export async function markOnboardingComplete(): Promise<void> {
 
 export async function isOnboardingComplete(): Promise<boolean> {
   return (await authStorage.getItem(ONBOARDING_COMPLETE_KEY)) === 'true';
+}
+
+export async function markPermissionSetupComplete(): Promise<void> {
+  await authStorage.setItem(PERMISSION_SETUP_COMPLETE_KEY, 'true');
+}
+
+export async function isPermissionSetupComplete(): Promise<boolean> {
+  return (await authStorage.getItem(PERMISSION_SETUP_COMPLETE_KEY)) === 'true';
 }
