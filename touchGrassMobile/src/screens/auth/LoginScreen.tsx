@@ -30,6 +30,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
 import { colors } from '../../constants/colors';
+import {DEFAULT_API_ORIGIN} from '../../config/api';
 import type { AuthStackParamList } from '../../navigation/types';
 import {useAuth} from '../../auth/AuthContext';
 import {getApiOrigin, saveApiOrigin} from '../../storage/apiConfigStorage';
@@ -78,7 +79,7 @@ export function LoginScreen({ navigation }: Props) {
   const [errors, setErrors] = useState<LoginErrors>({});
   const [isSubmitting, setIsSubmitting] =
     useState(false);
-  const [apiOrigin, setApiOrigin] = useState('http://10.0.2.2:3000');
+  const [apiOrigin, setApiOrigin] = useState(DEFAULT_API_ORIGIN);
   const [showServerConfig, setShowServerConfig] = useState(false);
 
   useEffect(() => {

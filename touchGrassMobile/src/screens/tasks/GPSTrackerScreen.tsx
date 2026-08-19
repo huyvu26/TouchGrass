@@ -18,6 +18,12 @@ import {
 import Geolocation, {
   type GeolocationResponse,
 } from '@react-native-community/geolocation';
+import MapView, {
+  Marker,
+  Polyline,
+  PROVIDER_GOOGLE,
+  type LatLng,
+} from 'react-native-maps';
 import {
   AlertCircle,
   MapPin,
@@ -27,7 +33,6 @@ import {
 } from 'lucide-react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import Svg, {Circle, Rect} from 'react-native-svg';
 
 import {ScreenHeader} from '../../components/ScreenHeader';
 import {colors} from '../../constants/colors';
@@ -57,6 +62,12 @@ type TrackingPhase =
   | 'failed';
 
 const MAX_GPS_POINTS = 500;
+const INITIAL_MAP_REGION = {
+  latitude: 10.762622,
+  longitude: 106.660172,
+  latitudeDelta: 0.008,
+  longitudeDelta: 0.008,
+};
 
 Geolocation.setRNConfiguration({
   skipPermissionRequests: true,
@@ -137,6 +148,7 @@ export function GPSTrackerScreen({navigation, route}: Props) {
   const [pointsCount, setPointsCount] = useState(0);
   const [latestPoint, setLatestPoint] =
     useState<GpsPoint | null>(null);
+  const [routeCoordinates, setRouteCoordinates] = useState<LatLng[]>([]);
   const [targetValue, setTargetValue] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [failureMessage, setFailureMessage] = useState<string | null>(
@@ -149,6 +161,7 @@ export function GPSTrackerScreen({navigation, route}: Props) {
   >(null);
 
   const pointsRef = useRef<GpsPoint[]>([]);
+  const mapRef = useRef<MapView | null>(null);
   const watchIdRef = useRef<number | null>(null);
   const trackingStartedAtRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
@@ -196,6 +209,10 @@ export function GPSTrackerScreen({navigation, route}: Props) {
 
     pointsRef.current.push(point);
     setPointsCount(pointsRef.current.length);
+    setRouteCoordinates(current => [
+      ...current,
+      {latitude: point.latitude, longitude: point.longitude},
+    ]);
   }, []);
 
   const startLocationWatch = useCallback(() => {
@@ -233,6 +250,7 @@ export function GPSTrackerScreen({navigation, route}: Props) {
     pointsRef.current = [];
     setPointsCount(0);
     setLatestPoint(null);
+    setRouteCoordinates([]);
 
     try {
       const permissionResult = await requestLocationPermission();
@@ -332,6 +350,23 @@ export function GPSTrackerScreen({navigation, route}: Props) {
 
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!latestPoint) {
+      return;
+    }
+
+    mapRef.current?.animateCamera(
+      {
+        center: {
+          latitude: latestPoint.latitude,
+          longitude: latestPoint.longitude,
+        },
+        zoom: 17,
+      },
+      {duration: 500},
+    );
+  }, [latestPoint]);
 
   function togglePause() {
     if (phase === 'tracking') {
@@ -449,22 +484,34 @@ export function GPSTrackerScreen({navigation, route}: Props) {
       />
 
       <View style={styles.map}>
-        <Svg width="100%" height="100%" viewBox="0 0 393 280">
-          <Rect width="393" height="280" fill="#EEF5E8" />
-          <Rect y="80" width="393" height="18" fill="#FFFFFF" opacity={0.7} />
-          <Rect y="160" width="393" height="18" fill="#FFFFFF" opacity={0.7} />
-          <Rect x="80" width="18" height="280" fill="#FFFFFF" opacity={0.7} />
-          <Rect x="200" width="18" height="280" fill="#FFFFFF" opacity={0.7} />
-          <Rect x="300" width="18" height="280" fill="#FFFFFF" opacity={0.7} />
-          <Rect x="105" y="105" width="80" height="48" rx="12" fill="#C8E6A0" />
-          {latestPoint ? (
-            <>
-              <Circle cx="196" cy="140" r="22" fill={colors.primaryButton} opacity={0.18} />
-              <Circle cx="196" cy="140" r="11" fill={colors.primaryButton} />
-              <Circle cx="196" cy="140" r="5" fill="#FFFFFF" />
-            </>
+        <MapView
+          ref={mapRef}
+          provider={PROVIDER_GOOGLE}
+          style={StyleSheet.absoluteFill}
+          initialRegion={INITIAL_MAP_REGION}
+          loadingEnabled
+          showsCompass
+          showsMyLocationButton
+          showsUserLocation={latestPoint !== null}
+          toolbarEnabled={false}>
+          {routeCoordinates.length > 1 ? (
+            <Polyline
+              coordinates={routeCoordinates}
+              strokeColor={colors.primaryButton}
+              strokeWidth={5}
+            />
           ) : null}
-        </Svg>
+          {latestPoint ? (
+            <Marker
+              coordinate={{
+                latitude: latestPoint.latitude,
+                longitude: latestPoint.longitude,
+              }}
+              title="Vị trí hiện tại"
+              pinColor={colors.primaryButton}
+            />
+          ) : null}
+        </MapView>
 
         <View style={styles.coordinateCard}>
           <MapPin size={18} color={colors.primaryButton} />

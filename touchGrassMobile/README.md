@@ -82,6 +82,20 @@ You've successfully run and modified your React Native App. :partying_face:
 - If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
 - If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
 
+## Google Maps trên Android
+
+Màn hình GPS dùng Google Maps thật. Hãy bật **Maps SDK for Android** trong
+Google Cloud Console, tạo Android API key, rồi thêm khóa vào file local không
+được commit `android/local.properties`:
+
+```properties
+TOUCHGRASS_GOOGLE_MAPS_API_KEY=YOUR_ANDROID_MAPS_API_KEY
+```
+
+Nên giới hạn API key theo package `com.touchgrassmobile` và SHA-1 của keystore
+dùng để ký APK. Sau khi thêm hoặc thay đổi khóa, cần build/cài lại ứng dụng;
+Metro reload không cập nhật AndroidManifest.
+
 # Troubleshooting
 
 If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.

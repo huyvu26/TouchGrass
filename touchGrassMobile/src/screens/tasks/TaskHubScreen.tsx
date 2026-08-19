@@ -8,12 +8,8 @@ import {
   View,
 } from 'react-native';
 import {
-  BarChart2,
   Clock,
-  Home,
   Leaf,
-  ListChecks,
-  User,
   Zap,
 } from 'lucide-react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
@@ -21,6 +17,7 @@ import {useFocusEffect} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
 import {colors} from '../../constants/colors';
+import {BottomTabBar} from '../../components/BottomTabBar';
 import type {AuthStackParamList} from '../../navigation/types';
 import {getTasks} from '../../services/taskService';
 import {getUserTasks} from '../../services/userTaskService';
@@ -30,6 +27,7 @@ import type {
   TaskDifficulty,
   TaskFrequency,
 } from '../../types/task';
+import {isCurrentTaskCycle} from '../../utils/taskCycles';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
@@ -66,94 +64,6 @@ const DIFFICULTY_LABELS: Record<TaskDifficulty, string> = {
   HARD: 'Khó',
 };
 
-function getVietnamDateKey(date = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
-  const value = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find(part => part.type === type)?.value ?? '';
-  return `${value('year')}-${value('month')}-${value('day')}`;
-}
-
-function getCurrentCycleKeys(): Set<string> {
-  const today = getVietnamDateKey();
-  const monday = new Date(`${today}T00:00:00.000Z`);
-  const mondayOffset = (monday.getUTCDay() + 6) % 7;
-  monday.setUTCDate(monday.getUTCDate() - mondayOffset);
-  return new Set([
-    `DAILY:${today}`,
-    `WEEKLY:${monday.toISOString().slice(0, 10)}`,
-  ]);
-}
-
-interface BottomNavProps {
-  onHome: () => void;
-  onStats: () => void;
-  onProfile: () => void;
-}
-
-function BottomNavigation({
-  onHome,
-  onStats,
-  onProfile,
-}: BottomNavProps) {
-  const items = [
-    {key: 'home', label: 'Trang chủ', icon: Home},
-    {key: 'tasks', label: 'Nhiệm vụ', icon: ListChecks},
-    {key: 'stats', label: 'Thống kê', icon: BarChart2},
-    {key: 'profile', label: 'Hồ sơ', icon: User},
-  ] as const;
-
-  return (
-    <View style={styles.bottomNav}>
-      {items.map(item => {
-        const Icon = item.icon;
-        const active = item.key === 'tasks';
-
-        return (
-          <Pressable
-            key={item.key}
-            accessibilityRole="button"
-            style={styles.navItem}
-            onPress={() => {
-              if (item.key === 'home') {
-                onHome();
-              } else if (item.key === 'stats') {
-                onStats();
-              } else if (item.key === 'profile') {
-                onProfile();
-              }
-            }}>
-            <View
-              style={[
-                styles.navIconContainer,
-                active && styles.navIconActive,
-              ]}>
-              <Icon
-                size={20}
-                color={
-                  active ? colors.primary : colors.textSecondary
-                }
-                strokeWidth={active ? 2.3 : 1.8}
-              />
-            </View>
-            <Text
-              style={[
-                styles.navLabel,
-                active && styles.navLabelActive,
-              ]}>
-              {item.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
 export function TaskHubScreen({navigation}: Props) {
   const [activeTab, setActiveTab] =
     useState<TaskFrequency>('DAILY');
@@ -180,12 +90,11 @@ export function TaskHubScreen({navigation}: Props) {
         getUserTasks(1, 50),
       ]);
       setAllTasks(taskData);
-      const currentCycles = getCurrentCycleKeys();
       setCompletedTaskIds(new Set(
         userTasks.items
           .filter(item =>
             item.status === 'COMPLETED' &&
-            currentCycles.has(item.cycleKey),
+            isCurrentTaskCycle(item.cycleKey, item.task.frequency),
           )
           .map(item => item.task._id),
       ));
@@ -374,11 +283,7 @@ export function TaskHubScreen({navigation}: Props) {
         }) : null}
       </ScrollView>
 
-      <BottomNavigation
-        onHome={() => navigation.navigate('Home')}
-        onStats={() => navigation.navigate('Statistics')}
-        onProfile={() => navigation.navigate('Profile')}
-      />
+      <BottomTabBar active="tasks" navigation={navigation} />
     </SafeAreaView>
   );
 }
@@ -559,34 +464,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 11,
   },
-  progressSection: {
-    marginBottom: 12,
-  },
-  progressHeader: {
-    marginBottom: 5,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  progressLabel: {
-    color: colors.textSecondary,
-    fontSize: 11,
-  },
-  progressValue: {
-    color: colors.primaryButton,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  progressTrack: {
-    height: 7,
-    overflow: 'hidden',
-    borderRadius: 4,
-    backgroundColor: colors.surfaceSoft,
-  },
-  progressBar: {
-    height: '100%',
-    borderRadius: 4,
-    backgroundColor: colors.primaryButton,
-  },
   rewardRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -642,39 +519,5 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.78,
-  },
-  bottomNav: {
-    height: 72,
-    paddingBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
-    elevation: 8,
-  },
-  navItem: {
-    flex: 1,
-    paddingTop: 10,
-    alignItems: 'center',
-    rowGap: 3,
-  },
-  navIconContainer: {
-    width: 40,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-  },
-  navIconActive: {
-    backgroundColor: colors.lime,
-  },
-  navLabel: {
-    color: colors.textSecondary,
-    fontSize: 10,
-  },
-  navLabelActive: {
-    color: colors.primary,
-    fontWeight: '700',
   },
 });

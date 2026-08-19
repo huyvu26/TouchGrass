@@ -28,12 +28,18 @@ export function BadgeScreen({navigation}: Props) {
   const [summary, setSummary] = useState<ProfileSummaryResponse | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      if (reloadKey > 0) {
+        setSelectedId(null);
+      }
       async function loadData() {
         setLoading(true);
+        setError(null);
         try {
           const [user, taskSummary] = await Promise.all([
             getMyProfile(),
@@ -42,6 +48,14 @@ export function BadgeScreen({navigation}: Props) {
           if (active) {
             setProfile(user);
             setSummary(taskSummary);
+          }
+        } catch (loadError) {
+          if (active) {
+            setError(
+              loadError instanceof Error
+                ? loadError.message
+                : 'Không thể tải bộ sưu tập huy hiệu.',
+            );
           }
         } finally {
           if (active) {
@@ -53,7 +67,7 @@ export function BadgeScreen({navigation}: Props) {
       return () => {
         active = false;
       };
-    }, []),
+    }, [reloadKey]),
   );
 
   const badges = useMemo(() => {
@@ -97,6 +111,14 @@ export function BadgeScreen({navigation}: Props) {
         </View>
 
         {loading ? <ActivityIndicator color={colors.primaryButton} /> : null}
+        {!loading && error ? (
+          <View style={styles.errorCard}>
+            <Text style={styles.errorText}>{error}</Text>
+            <Pressable style={styles.retryButton} onPress={() => setReloadKey(value => value + 1)}>
+              <Text style={styles.retryText}>Thử lại</Text>
+            </Pressable>
+          </View>
+        ) : null}
         <Text style={styles.sectionTitle}>Huy hiệu từ dữ liệu hoạt động</Text>
         <View style={styles.grid}>
           {badges.map(badge => (
@@ -147,6 +169,10 @@ export function BadgeScreen({navigation}: Props) {
 }
 
 const styles = StyleSheet.create({
+  errorCard: {marginBottom: 14, padding: 14, alignItems: 'center', rowGap: 10, borderRadius: 14, backgroundColor: colors.errorBackground},
+  errorText: {color: colors.error, fontSize: 12, lineHeight: 18, textAlign: 'center'},
+  retryButton: {paddingHorizontal: 18, paddingVertical: 9, borderRadius: 18, backgroundColor: colors.primaryButton},
+  retryText: {color: '#FFFFFF', fontSize: 12, fontWeight: '700'},
   screen: {flex: 1, backgroundColor: colors.background},
   content: {paddingHorizontal: 20, paddingBottom: 24},
   levelCard: {marginBottom: 18, padding: 16, flexDirection: 'row', alignItems: 'center', columnGap: 13, borderRadius: 20, backgroundColor: colors.primary},

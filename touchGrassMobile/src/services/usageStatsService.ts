@@ -3,9 +3,7 @@ import {usageStatsNative} from '../native/usageStats';
 
 export async function getSelectableApps() {
   const apps = await usageStatsNative.getInstalledLaunchableApps();
-  return apps.filter(
-    app => !app.isSystemApp && !isProtectedPackage(app.packageName),
-  );
+  return apps.filter(app => !isProtectedPackage(app.packageName));
 }
 
 export async function getTodayUsage() {

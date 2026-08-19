@@ -17,10 +17,9 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {colors} from '../../constants/colors';
 import {ToggleSwitch} from '../../components/ToggleSwitch';
 import type {AuthStackParamList} from '../../navigation/types';
-import type {AppInfo, AppUsageInfo} from '../../native/usageStats';
+import type {AppInfo} from '../../native/usageStats';
 import {
   getSelectableApps,
-  getTodayUsage,
   isUsageAccessGranted,
   openUsageAccessSettings,
 } from '../../services/usageStatsService';
@@ -44,7 +43,6 @@ type FilterKey = 'selected' | 'all';
 export function AppManagementScreen({navigation}: Props) {
   const [apps, setApps] = useState<AppInfo[]>([]);
   const [rules, setRules] = useState<AppLimitRule[]>([]);
-  const [usage, setUsage] = useState<AppUsageInfo[]>([]);
   const [hasUsageAccess, setHasUsageAccess] = useState(false);
   const [hasAccessibility, setHasAccessibility] = useState(false);
   const [controlEnabled, setControlEnabled] = useState(false);
@@ -63,14 +61,12 @@ export function AppManagementScreen({navigation}: Props) {
       setHasUsageAccess(granted);
       setHasAccessibility(accessibility);
       setControlEnabled(enabled);
-      const [installed, storedRules, todayUsage] = await Promise.all([
+      const [installed, storedRules] = await Promise.all([
         getSelectableApps(),
         refreshAppControlRulesFromBackend().catch(() => getAppLimitRules()),
-        granted ? getTodayUsage() : Promise.resolve([]),
       ]);
       setApps(installed);
       setRules(storedRules);
-      setUsage(todayUsage);
       await syncAppControlRules();
     } catch (error) {
       Alert.alert('Không thể đọc ứng dụng', error instanceof Error ? error.message : 'Native module không khả dụng.');
@@ -119,10 +115,6 @@ export function AppManagementScreen({navigation}: Props) {
     () => new Map(rules.map(rule => [rule.packageName, rule])),
     [rules],
   );
-  const usageByPackage = useMemo(
-    () => new Map(usage.map(item => [item.packageName, item])),
-    [usage],
-  );
   const filtered = useMemo(() => apps.filter(app => {
     const matchesSearch = app.appName.toLowerCase().includes(search.trim().toLowerCase());
     return matchesSearch && (filter === 'all' || ruleByPackage.has(app.packageName));
@@ -169,12 +161,6 @@ export function AppManagementScreen({navigation}: Props) {
         },
       ],
     );
-  }
-
-  function formatUsage(packageName: string) {
-    if (!hasUsageAccess) return 'Cần cấp Usage Access';
-    const minutes = Math.floor((usageByPackage.get(packageName)?.totalTimeInForegroundMs ?? 0) / 60000);
-    return `${minutes} phút hôm nay`;
   }
 
   return (
@@ -245,7 +231,7 @@ export function AppManagementScreen({navigation}: Props) {
                 <Text style={styles.appName}>{app.appName}</Text>
                 <Text numberOfLines={1} style={styles.packageName}>{app.packageName}</Text>
                 <Text style={[styles.usage, rule?.enabled && styles.exceeded]}>
-                  {formatUsage(app.packageName)}{rule ? rule.enabled ? ' · Đang khóa' : ' · Đã tạm tắt' : ''}
+                  {rule ? rule.enabled ? 'Đang khóa khi mở ứng dụng' : 'Đã tạm tắt khóa' : 'Chưa được chọn để khóa'}
                 </Text>
               </Pressable>
               <Pressable

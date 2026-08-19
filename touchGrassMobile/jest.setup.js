@@ -7,6 +7,21 @@ jest.mock('@react-native-community/geolocation', () => ({
   clearWatch: jest.fn(),
 }));
 
+jest.mock('react-native-maps', () => {
+  const React = require('react');
+  const {View} = require('react-native');
+  const MapComponent = React.forwardRef((props, ref) =>
+    React.createElement(View, {...props, ref}),
+  );
+  return {
+    __esModule: true,
+    default: MapComponent,
+    Marker: props => React.createElement(View, props),
+    Polyline: props => React.createElement(View, props),
+    PROVIDER_GOOGLE: 'google',
+  };
+});
+
 jest.mock('@react-native-ml-kit/image-labeling', () => ({
   __esModule: true,
   default: {label: jest.fn(async () => [])},
