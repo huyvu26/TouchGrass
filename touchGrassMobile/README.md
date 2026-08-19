@@ -1,111 +1,155 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Touch Grass Mobile
 
-# Getting Started
+Android app for the **CSE430 course project "Touch Grass"**: blocks social-media apps until the
+user completes real-world tasks (walking, photo verification, screen-off timers) and earns XP/Leaf
+Points that unlock limited app access. This is the React Native client; the NestJS API lives in the
+sibling `../Backend/` repo.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Tech stack
 
-## Step 1: Start Metro
+- **React Native 0.86** + TypeScript (npm), **Android-only** — native modules in `src/native/` throw on iOS
+- **React Navigation 7** (`native-stack`) with a deep link `touchgrass://reset-password`
+- Native Android integration: usage stats, app control, accessibility monitor, ML Kit image labeling, vision-camera, geolocation
+- **Google sign-in** (`@react-native-google-signin`) against the Touch Grass backend
+- Jest + `@react-native/jest-preset` with native deps pre-mocked
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Prerequisites
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+- Node.js ≥ 22.11 (enforced by `engines`)
+- Android SDK + an Android emulator or connected device (Java JDK for Gradle)
+- A running backend: see `../Backend/README.md` (`.env`, MongoDB via Docker, `npm run seed:tasks`)
+- The Google Web client ID in `src/config/oauth.ts` must match `GOOGLE_WEB_CLIENT_ID` in `Backend/.env`
 
-```sh
-# Using npm
-npm start
+## Setup & run
 
-# OR using Yarn
-yarn start
+```bash
+npm install
 ```
 
-## Step 2: Build and run your app
+Start the backend first (`../Backend/`), then from `touchGrassMobile/`:
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+```bash
+npm start           # start Metro (leave it running)
+npm run android     # build & install on the emulator/device
 ```
 
-### iOS
+> Note: `npm run android` spawns Metro only for the build/install step, then closes it — keep
+> `npm start` running in a separate terminal (or restart Metro after) to stay connected.
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+### Connecting to the backend
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+- **Emulator (default):** `src/config/api.ts` points to `http://10.0.2.2:3000` — the emulator's
+  alias for the host machine. No change needed.
+- **Physical device:** change `DEFAULT_API_ORIGIN` in `src/config/api.ts` to your machine's LAN IP,
+  e.g. `http://192.168.1.10:3000`.
+- The API origin is overridable at runtime (stored in AsyncStorage) — see `src/storage/apiConfigStorage.ts`.
 
-```sh
-bundle install
+## Testing & checks
+
+```bash
+npm run lint        # ESLint (@react-native preset)
+npm test            # Jest (__tests__/App.test.tsx)
+npx tsc --noEmit    # typecheck — there is NO npm script for this; run it after changes
 ```
 
-Then, and every time you update your native dependencies, run:
+Jest mocks native deps (lucide icons, geolocation, ML Kit, vision-camera, async-storage) in
+`jest.setup.js` + `jest.config.js`. When adding a native dependency, add its mock there or tests
+will fail at import.
 
-```sh
-bundle exec pod install
+## Architecture
+
+```
+App.tsx
+  SafeAreaProvider > AuthProvider > NavigationContainer (deep link touchgrass://reset-password) > AuthNavigator
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+- One native stack with `initialRouteName="Splash"`, `headerShown: false`. Screens and their route
+  params are declared together in `src/navigation/` — keep `types.ts` in sync with
+  `AuthNavigator.tsx`.
+- `src/services/apiClient.ts` is the fetch wrapper: attaches the `Bearer` token, throws
+  `ApiError(status, message)`, and on 401 clears the token and resets to Login. Use
+  `authenticated: false` for public endpoints.
+- Native Android bridges live in `src/native/` and throw off-Android.
+- UI copy is Vietnamese; shared UI in `src/components/`, palette in `src/constants/colors.ts`.
 
-```sh
-# Using npm
-npm run ios
+### API request flow
 
-# OR using Yarn
-yarn ios
+```mermaid
+sequenceDiagram
+    participant S as Screen
+    participant C as apiClient
+    participant B as NestJS API
+    S->>C: request(path, { authenticated })
+    alt authenticated
+        C->>C: attach Bearer JWT
+    end
+    C->>B: fetch {origin}/api/v1/path
+    alt status 401
+        B-->>C: ApiError(401)
+        C->>C: clear token (AsyncStorage)
+        C-->>S: reset to Login
+    else ok
+        B-->>C: data
+        C-->>S: parsed result
+    end
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## Screen flow
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+The 26 screens registered in `src/navigation/AuthNavigator.tsx` (all routes in one native stack,
+`initialRouteName="Splash"`). `Splash` restores the session: no token → `Onboarding`/`Login`,
+valid token → `Home`. `AppLock` is shown by the native accessibility monitor when a blocked app is
+opened, rather than pushed from the stack:
 
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-## Google Maps trên Android
-
-Màn hình GPS dùng Google Maps thật. Hãy bật **Maps SDK for Android** trong
-Google Cloud Console, tạo Android API key, rồi thêm khóa vào file local không
-được commit `android/local.properties`:
-
-```properties
-TOUCHGRASS_GOOGLE_MAPS_API_KEY=YOUR_ANDROID_MAPS_API_KEY
+```mermaid
+flowchart TD
+    Splash -->|no token, not onboarded| Onboarding
+    Splash -->|no token, onboarded| Login
+    Splash -->|valid token| Home
+    Onboarding --> Login
+    Login --> Register
+    Login --> ForgotPassword
+    ForgotPassword --> ResetPassword
+    ResetPassword --> Login
+    Login -->|success| Permission
+    Register -->|success| Permission
+    Permission --> Home
+    Home --> TaskHub
+    Home --> AppManagement
+    Home --> Statistics
+    Home --> History
+    Home --> Profile
+    TaskHub --> TaskDetail
+    TaskDetail --> GPSTracker
+    TaskDetail --> ScreenTimer
+    TaskDetail --> ManualCheckin
+    TaskDetail --> AICamera
+    AICamera --> AIAnalysis
+    GPSTracker --> Reward
+    ScreenTimer --> Reward
+    ManualCheckin --> Reward
+    AIAnalysis --> Reward
+    Reward --> Home
+    AppManagement --> AppLimit
+    Profile --> EditProfile
+    Profile --> Settings
+    Profile --> Notifications
+    AppLock -. shown by native monitor.-> Home
 ```
 
-Nên giới hạn API key theo package `com.touchgrassmobile` và SHA-1 của keystore
-dùng để ký APK. Sau khi thêm hoặc thay đổi khóa, cần build/cài lại ứng dụng;
-Metro reload không cập nhật AndroidManifest.
+## Project structure
 
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+```
+src/
+  App.tsx                  # entry: providers + navigation container
+  navigation/              # AuthNavigator + route types (keep in sync)
+  screens/                 # feature-grouped screens: auth, onboarding, home, tasks,
+                           # verification, progress, rewards, apps, lock, profile
+  services/                # apiClient, auth service, storage helpers
+  native/                  # Android bridges (usage stats, app control, accessibility monitor)
+  config/                  # api.ts (API origin), oauth.ts (Google client ID)
+  constants/               # colors, theme
+  storage/                 # AsyncStorage-backed runtime config
+  components/              # shared UI
+android/                   # native project (see build.gradle)
+```
