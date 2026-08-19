@@ -19,7 +19,6 @@ export interface AuthUser {
   xp: number;
   level: number;
   leafPoints: number;
-  unlockMinutesBalance: number;
   role: string;
 }
 

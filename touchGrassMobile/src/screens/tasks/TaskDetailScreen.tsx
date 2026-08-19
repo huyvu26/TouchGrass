@@ -185,7 +185,6 @@ export function TaskDetailScreen({navigation, route}: Props) {
   const rewards = [
     {icon: '⚡', value: `+${task.rewardXp} XP`, color: colors.lime},
     {icon: '🍃', value: `+${task.rewardLp} LP`, color: colors.surfaceSoft},
-    {icon: '🔓', value: `+${task.unlockMinutes} phút`, color: '#DCEFFD'},
   ];
   const meta = [
     {label: '🎯 Mục tiêu', value: formatTarget(task.targetValue, task.targetUnit)},

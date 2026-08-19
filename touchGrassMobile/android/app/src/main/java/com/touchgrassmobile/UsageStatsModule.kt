@@ -8,8 +8,6 @@ import android.net.Uri
 import android.content.pm.ApplicationInfo
 import android.provider.Settings
 import android.os.Build
-import android.telecom.TelecomManager
-import android.provider.Telephony
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -51,7 +49,6 @@ class UsageStatsModule(
     try {
       val packageManager = reactContext.packageManager
       val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-      val protectedPackages = getProtectedPackages()
       val apps = Arguments.createArray()
       val seen = mutableSetOf<String>()
 
@@ -59,7 +56,7 @@ class UsageStatsModule(
       val activities = packageManager.queryIntentActivities(launcherIntent, 0)
       activities.sortedBy { it.loadLabel(packageManager).toString().lowercase() }.forEach { info ->
         val packageName = info.activityInfo.packageName
-        if (!seen.add(packageName) || protectedPackages.contains(packageName)) return@forEach
+        if (!seen.add(packageName)) return@forEach
         val applicationInfo = info.activityInfo.applicationInfo
         val isSystem = applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM != 0
         // Android's ApplicationInfo categories do not expose a reliable finance/authentication
@@ -132,31 +129,4 @@ class UsageStatsModule(
     return mode == AppOpsManager.MODE_ALLOWED
   }
 
-  private fun getProtectedPackages(): Set<String> {
-    val packages = mutableSetOf(
-      reactContext.packageName,
-      "com.android.settings",
-      "com.android.systemui",
-      "com.android.contacts",
-      "com.android.packageinstaller",
-      "com.google.android.packageinstaller",
-      "com.android.permissioncontroller",
-      "com.google.android.permissioncontroller",
-      "com.google.android.gms",
-      "com.android.emergency",
-      "com.google.android.emergency",
-      "com.android.camera",
-      "com.android.camera2",
-      "com.google.android.GoogleCamera",
-      "com.android.devicelockcontroller",
-    )
-    val packageManager = reactContext.packageManager
-    val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-    @Suppress("DEPRECATION")
-    packageManager.resolveActivity(homeIntent, 0)?.activityInfo?.packageName?.let(packages::add)
-    Telephony.Sms.getDefaultSmsPackage(reactContext)?.let(packages::add)
-    (reactContext.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager)
-      ?.defaultDialerPackage?.let(packages::add)
-    return packages
-  }
 }

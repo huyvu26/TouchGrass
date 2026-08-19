@@ -37,3 +37,32 @@ export interface UnlockOption {
 export interface UnlockOptionsResponse {
   items: UnlockOption[];
 }
+
+export interface ProtectedPackagesResponse {
+  items: string[];
+}
+
+export interface AppUsageSummaryItem {
+  packageName: string;
+  totalTimeInForegroundMs: number;
+  lastTimeUsed?: string;
+}
+
+export interface AppUsageSummaryRequest {
+  date: string;
+  totalScreenTimeSeconds?: number;
+  apps: AppUsageSummaryItem[];
+}
+
+export interface AppUsageSummaryResponse extends AppUsageSummaryRequest {
+  updatedAt: string;
+}
+
+export interface AppControlSummaryResponse {
+  available: boolean;
+  date: string;
+  totalScreenTimeSeconds: number;
+  limitedAppCount: number;
+  timeSavedAvailable: boolean;
+  timeSavedSeconds: number;
+}

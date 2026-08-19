@@ -29,6 +29,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
 import { colors } from '../../constants/colors';
+import {
+  isStrongPassword,
+  PASSWORD_REQUIREMENTS_MESSAGE,
+} from '../../utils/passwordValidation';
 import type { AuthStackParamList } from '../../navigation/types';
 import {useAuth} from '../../auth/AuthContext';
 import {isGoogleAuthConfigured, signInWithGoogle} from '../../services/googleAuthService';
@@ -154,7 +158,7 @@ function getPasswordStrength(password: string) {
     return { score: 2, color: '#E8A020', label: 'Yếu' };
   }
 
-  if (/[A-Z]/.test(password) && /[0-9]/.test(password)) {
+  if (isStrongPassword(password)) {
     return {
       score: 4,
       color: colors.primaryButton,
@@ -201,8 +205,8 @@ export function RegisterScreen({ navigation }: Props) {
       newErrors.email = 'Địa chỉ email không hợp lệ.';
     }
 
-    if (password.length < 8) {
-      newErrors.password = 'Mật khẩu phải có ít nhất 8 ký tự.';
+    if (!isStrongPassword(password)) {
+      newErrors.password = PASSWORD_REQUIREMENTS_MESSAGE;
     }
 
     if (confirmPassword !== password) {
@@ -348,7 +352,7 @@ export function RegisterScreen({ navigation }: Props) {
               <AuthInput
                 label="Mật khẩu"
                 value={password}
-                placeholder="Tối thiểu 8 ký tự"
+                placeholder="8+ ký tự, hoa, thường và số"
                 secureTextEntry={!showPassword}
                 autoComplete="new-password"
                 error={errors.password}

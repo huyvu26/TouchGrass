@@ -123,8 +123,7 @@ export function ProfileScreen({ navigation }: Props) {
             </Text>
           </View>
           <Text style={styles.xpCaption}>
-            {profile?.leafPoints ?? 0} Leaf Points ·{' '}
-            {profile?.unlockMinutesBalance ?? 0} phút mở khóa
+            {profile?.leafPoints ?? 0} Leaf Points
           </Text>
         </View>
 

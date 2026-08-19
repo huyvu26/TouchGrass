@@ -29,7 +29,6 @@ export interface Task {
   difficulty: TaskDifficulty;
   rewardXp: number;
   rewardLp: number;
-  unlockMinutes: number;
   targetValue: number;
   targetUnit: TaskTargetUnit;
   estimatedMinutes: number;

@@ -2,6 +2,10 @@ import type {AppLimitRule} from '../storage/appControlStorage';
 import type {
   AppControlRuleListResponse,
   AppControlRuleResponse,
+  AppControlSummaryResponse,
+  AppUsageSummaryRequest,
+  AppUsageSummaryResponse,
+  ProtectedPackagesResponse,
   TemporaryUnlockResponse,
   TemporaryUnlockStatusResponse,
   UnlockOptionsResponse,
@@ -10,6 +14,23 @@ import {apiRequest} from './apiClient';
 
 export function getAppControlRules(): Promise<AppControlRuleListResponse> {
   return apiRequest<AppControlRuleListResponse>('/app-control/rules');
+}
+
+export function getProtectedPackages(): Promise<ProtectedPackagesResponse> {
+  return apiRequest<ProtectedPackagesResponse>('/app-control/protected-packages');
+}
+
+export function submitAppUsageSummary(
+  summary: AppUsageSummaryRequest,
+): Promise<AppUsageSummaryResponse> {
+  return apiRequest<AppUsageSummaryResponse>('/app-control/usage-summary', {
+    method: 'POST',
+    body: summary,
+  });
+}
+
+export function getAppControlSummary(): Promise<AppControlSummaryResponse> {
+  return apiRequest<AppControlSummaryResponse>('/app-control/summary');
 }
 
 export function createAppControlRule(rule: AppLimitRule): Promise<AppControlRuleResponse> {

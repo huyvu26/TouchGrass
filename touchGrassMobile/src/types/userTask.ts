@@ -124,7 +124,6 @@ export interface UserTaskDefinition {
   difficulty: TaskDifficulty;
   rewardXp: number;
   rewardLp: number;
-  unlockMinutes: number;
   targetValue: number;
   targetUnit: TaskTargetUnit;
   estimatedMinutes: number;
@@ -199,7 +198,6 @@ export interface CompleteTaskResponse {
   rewardPreview: {
     xp: number;
     leafPoints: number;
-    unlockMinutes: number;
   };
 }
 
@@ -212,13 +210,11 @@ export interface ClaimRewardResponse {
   reward: {
     xp: number;
     leafPoints: number;
-    unlockMinutes: number;
   };
   profile: {
     xp: number;
     level: number;
     leafPoints: number;
-    unlockMinutesBalance: number;
   };
   alreadyClaimed: boolean;
 }

@@ -6,12 +6,12 @@ import {
   saveAppLimitRule,
   type AppLimitRule,
 } from '../storage/appControlStorage';
-import {isProtectedPackage} from './protectedPackages';
 import {appControlNative} from '../native/appControl';
 import {
   deleteAppControlData,
   deleteAppControlRuleByPackage,
   getAppControlRules,
+  getProtectedPackages,
   upsertAppControlRule,
 } from './appControlApiService';
 
@@ -21,7 +21,10 @@ export interface AppLimitEvaluation {
 }
 
 export async function evaluateAppLimit(packageName: string): Promise<AppLimitEvaluation> {
-  if (isProtectedPackage(packageName)) return {shouldWarn: false, reason: 'PROTECTED'};
+  const protectedResponse = await getProtectedPackages();
+  if (protectedResponse.items.includes(packageName)) {
+    return {shouldWarn: false, reason: 'PROTECTED'};
+  }
   const rule = (await getAppLimitRules()).find(item => item.packageName === packageName);
   if (!rule) return {shouldWarn: false, reason: 'NO_RULE'};
   if (!rule.enabled) return {shouldWarn: false, reason: 'DISABLED'};
@@ -29,15 +32,24 @@ export async function evaluateAppLimit(packageName: string): Promise<AppLimitEva
 }
 
 export async function syncAppControlRules(): Promise<void> {
-  await appControlNative.syncRules(await getAppLimitRules());
+  const [rules, protectedResponse] = await Promise.all([
+    getAppLimitRules(),
+    getProtectedPackages(),
+  ]);
+  await appControlNative.syncRules(rules, protectedResponse.items);
 }
 
 export async function refreshAppControlRulesFromBackend(): Promise<AppLimitRule[]> {
-  const response = await getAppControlRules();
+  const [response, protectedResponse] = await Promise.all([
+    getAppControlRules(),
+    getProtectedPackages(),
+  ]);
+  const protectedPackages = new Set(protectedResponse.items);
   const rules = response.items.map(({id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...rule}) => rule);
-  await replaceAppLimitRules(rules);
-  await appControlNative.syncRules(rules);
-  return rules;
+  const safeRules = rules.filter(rule => !protectedPackages.has(rule.packageName));
+  await replaceAppLimitRules(safeRules);
+  await appControlNative.syncRules(safeRules, protectedResponse.items);
+  return safeRules;
 }
 
 export async function saveAndSyncAppControlRule(rule: AppLimitRule): Promise<void> {
@@ -59,7 +71,6 @@ export async function removeAndSyncAppControlRule(packageName: string): Promise<
 
 export const isAppControlEnabled = appControlNative.isEnabled;
 export const setAppControlEnabled = appControlNative.setEnabled;
-export const grantPendingAppTemporaryUnlock = appControlNative.grantTemporaryUnlock;
 export const getPendingLockedApp = appControlNative.getPendingLockedApp;
 export const setTemporaryUnlockUntil = appControlNative.setTemporaryUnlockUntil;
 export const emergencyDisableAppControl = appControlNative.emergencyDisable;

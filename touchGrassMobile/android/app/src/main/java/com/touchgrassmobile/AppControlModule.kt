@@ -12,12 +12,18 @@ class AppControlModule(
   override fun getName(): String = "AppControl"
 
   @ReactMethod
-  fun syncAppLimitRules(rulesJson: String, promise: Promise) {
+  fun syncAppLimitRules(
+    rulesJson: String,
+    protectedPackagesJson: String,
+    promise: Promise,
+  ) {
     try {
       org.json.JSONArray(rulesJson)
+      org.json.JSONArray(protectedPackagesJson)
       reactContext.getSharedPreferences(AppControlPolicy.PREFS_NAME, android.content.Context.MODE_PRIVATE)
         .edit()
         .putString(AppControlPolicy.KEY_RULES, rulesJson)
+        .putString(AppControlPolicy.KEY_PROTECTED_PACKAGES, protectedPackagesJson)
         .apply()
       promise.resolve(null)
     } catch (error: Exception) {
@@ -57,17 +63,6 @@ class AppControlModule(
       putString("packageName", packageName)
       putString("appName", prefs.getString(AppControlPolicy.KEY_PENDING_APP_NAME, packageName))
     })
-  }
-
-  @ReactMethod
-  fun grantTemporaryUnlock(userTaskId: String, minutes: Double, promise: Promise) {
-    promise.resolve(
-      AppControlPolicy.applyRewardUnlock(
-        reactContext,
-        userTaskId,
-        minutes.toInt(),
-      ),
-    )
   }
 
   @ReactMethod

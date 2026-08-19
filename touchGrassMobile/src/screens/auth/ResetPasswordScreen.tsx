@@ -17,6 +17,10 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {colors} from '../../constants/colors';
 import type {AuthStackParamList} from '../../navigation/types';
 import {resetPassword} from '../../services/authService';
+import {
+  isStrongPassword,
+  PASSWORD_REQUIREMENTS_MESSAGE,
+} from '../../utils/passwordValidation';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'ResetPassword'>;
 
@@ -37,8 +41,8 @@ export function ResetPasswordScreen({navigation, route}: Props) {
       Alert.alert('Thiếu mã xác nhận', 'Hãy nhập mã hoặc token nhận được trong email.');
       return;
     }
-    if (password.length < 8) {
-      Alert.alert('Mật khẩu chưa hợp lệ', 'Mật khẩu mới phải có ít nhất 8 ký tự.');
+    if (!isStrongPassword(password)) {
+      Alert.alert('Mật khẩu chưa hợp lệ', PASSWORD_REQUIREMENTS_MESSAGE);
       return;
     }
     if (password !== confirmPassword) {
@@ -74,7 +78,7 @@ export function ResetPasswordScreen({navigation, route}: Props) {
           <Text style={styles.label}>Mã xác nhận hoặc token</Text>
           <TextInput value={token} onChangeText={setToken} autoCapitalize="none" autoCorrect={false} editable={!route.params?.token} style={[styles.input, route.params?.token && styles.prefilledInput]} placeholder="Nhập mã nhận được" placeholderTextColor={colors.placeholder} />
           <Text style={styles.label}>Mật khẩu mới</Text>
-          <TextInput value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" style={styles.input} placeholder="Ít nhất 8 ký tự" placeholderTextColor={colors.placeholder} />
+          <TextInput value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" style={styles.input} placeholder="8+ ký tự, hoa, thường và số" placeholderTextColor={colors.placeholder} />
           <Text style={styles.label}>Xác nhận mật khẩu</Text>
           <TextInput value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry autoCapitalize="none" style={styles.input} placeholder="Nhập lại mật khẩu mới" placeholderTextColor={colors.placeholder} returnKeyType="done" />
           <Pressable disabled={submitting} style={[styles.button, submitting && styles.disabled]} onPress={submit}>
