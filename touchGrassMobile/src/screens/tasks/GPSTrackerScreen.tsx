@@ -63,6 +63,7 @@ type TrackingPhase =
   | 'failed';
 
 const MAX_GPS_POINTS = 500;
+const MAX_ACCEPTABLE_GPS_ACCURACY_METERS = 75;
 const INITIAL_MAP_REGION = {
   latitude: 10.762622,
   longitude: 106.660172,
@@ -164,6 +165,8 @@ export function GPSTrackerScreen({navigation, route}: Props) {
   const [settingsTarget, setSettingsTarget] = useState<
     'permission' | 'location' | null
   >(null);
+  const [locationPermissionGranted, setLocationPermissionGranted] =
+    useState(false);
 
   const pointsRef = useRef<GpsPoint[]>([]);
   const liveDistanceMetersRef = useRef(0);
@@ -171,7 +174,6 @@ export function GPSTrackerScreen({navigation, route}: Props) {
   const mapRef = useRef<MapView | null>(null);
   const watchIdRef = useRef<number | null>(null);
   const acceptingPositionsRef = useRef(false);
-  const trackingStartedAtRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
 
   const stopLocationWatch = useCallback(() => {
@@ -217,8 +219,11 @@ export function GPSTrackerScreen({navigation, route}: Props) {
 
     setLatestPoint(point);
 
-    // Điểm yếu chỉ dùng để báo chất lượng tín hiệu, không lưu vào tuyến đường.
-    if (accuracy > 50 || pointsRef.current.length >= MAX_GPS_POINTS) {
+    // Sai số trên 75 m chỉ dùng để hiển thị vị trí gần đúng, không dùng xác minh.
+    if (
+      accuracy > MAX_ACCEPTABLE_GPS_ACCURACY_METERS ||
+      pointsRef.current.length >= MAX_GPS_POINTS
+    ) {
       return;
     }
 
@@ -253,33 +258,50 @@ export function GPSTrackerScreen({navigation, route}: Props) {
     ]);
   }, []);
 
+  const handleLocationError = useCallback((error: {code: number}) => {
+    if (!mountedRef.current) {
+      return;
+    }
+
+    if (error.code === 1) {
+      setSettingsTarget('permission');
+    } else if (error.code === 2) {
+      setSettingsTarget('location');
+    }
+    setFailureMessage(getLocationErrorMessage(error.code));
+  }, []);
+
   const startLocationWatch = useCallback(() => {
     stopLocationWatch();
     acceptingPositionsRef.current = true;
+
+    // Lấy nhanh vị trí gần nhất để đưa bản đồ tới người dùng, sau đó tiếp tục
+    // chờ mẫu GPS chính xác. Mẫu thô vẫn phải qua recordPosition để lọc.
+    Geolocation.getCurrentPosition(recordPosition, () => undefined, {
+      enableHighAccuracy: false,
+      maximumAge: 15000,
+      timeout: 5000,
+    });
+
+    Geolocation.getCurrentPosition(recordPosition, handleLocationError, {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 30000,
+    });
+
     watchIdRef.current = Geolocation.watchPosition(
       recordPosition,
-      error => {
-        if (!mountedRef.current) {
-          return;
-        }
-
-        if (error.code === 1) {
-          setSettingsTarget('permission');
-        } else if (error.code === 2) {
-          setSettingsTarget('location');
-        }
-        setFailureMessage(getLocationErrorMessage(error.code));
-      },
+      handleLocationError,
       {
         enableHighAccuracy: true,
-        distanceFilter: 1,
-        interval: 2000,
-        fastestInterval: 1000,
+        distanceFilter: 0,
+        interval: 1000,
+        fastestInterval: 500,
         maximumAge: 0,
-        timeout: 20000,
+        timeout: 30000,
       },
     );
-  }, [recordPosition, stopLocationWatch]);
+  }, [handleLocationError, recordPosition, stopLocationWatch]);
 
   const beginTracking = useCallback(async () => {
     setPhase('initializing');
@@ -295,7 +317,7 @@ export function GPSTrackerScreen({navigation, route}: Props) {
     setLiveDistanceMeters(0);
     setOfficialDistanceMeters(null);
     setElapsedSeconds(0);
-    trackingStartedAtRef.current = null;
+    setLocationPermissionGranted(false);
 
     try {
       const permissionResult = await requestLocationPermission();
@@ -310,6 +332,7 @@ export function GPSTrackerScreen({navigation, route}: Props) {
             : 'Bạn cần cấp quyền vị trí chính xác để làm nhiệm vụ GPS.',
         );
       }
+      setLocationPermissionGranted(true);
 
       try {
         await ensureLocationServicesEnabled();
@@ -328,9 +351,6 @@ export function GPSTrackerScreen({navigation, route}: Props) {
 
       setVerification(result);
       setTargetValue(result.targetValue);
-      trackingStartedAtRef.current = result.trackingStartedAt
-        ? new Date(result.trackingStartedAt).getTime()
-        : Date.now();
 
       if (result.verificationStatus === 'PASSED') {
         setOfficialDistanceMeters(result.summary.distanceMeters);
@@ -381,21 +401,16 @@ export function GPSTrackerScreen({navigation, route}: Props) {
   }, [beginTracking, stopLocationWatch]);
 
   useEffect(() => {
+    if (phase !== 'tracking') {
+      return;
+    }
+
     const timer = setInterval(() => {
-      if (trackingStartedAtRef.current !== null) {
-        setElapsedSeconds(
-          Math.max(
-            0,
-            Math.floor(
-              (Date.now() - trackingStartedAtRef.current) / 1000,
-            ),
-          ),
-        );
-      }
+      setElapsedSeconds(current => current + 1);
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [phase]);
 
   useEffect(() => {
     if (!latestPoint) {
@@ -455,9 +470,12 @@ export function GPSTrackerScreen({navigation, route}: Props) {
     }
 
     if (pointsRef.current.length < 2) {
+      setFailureMessage(
+        'Chưa thu được tối thiểu 2 điểm GPS hợp lệ. Phiên vẫn đang chạy; hãy tiếp tục di chuyển ở khu vực thoáng.',
+      );
       Alert.alert(
         'Chưa đủ dữ liệu GPS',
-        'Hãy tiếp tục di chuyển đến khi ứng dụng thu được ít nhất 2 điểm GPS chính xác.',
+        'Phiên chưa bị dừng. Hãy tiếp tục di chuyển ở khu vực thoáng rồi bấm Kết thúc và xác minh lại.',
       );
       return;
     }
@@ -491,16 +509,17 @@ export function GPSTrackerScreen({navigation, route}: Props) {
       setLiveDistanceMeters(result.summary.distanceMeters);
       setOfficialDistanceMeters(null);
       previousLivePointRef.current = null;
-      setPhase('tracking');
-      startLocationWatch();
+      setFailureMessage(
+        'Phiên đã dừng nhưng chưa đủ điều kiện xác minh. Bạn có thể tiếp tục ghi nhận GPS.',
+      );
+      setPhase('paused');
     } catch (error) {
       setFailureMessage(
         error instanceof Error
           ? error.message
           : 'Không thể gửi dữ liệu GPS để xác minh.',
       );
-      setPhase('tracking');
-      startLocationWatch();
+      setPhase('failed');
     }
   }
 
@@ -508,16 +527,22 @@ export function GPSTrackerScreen({navigation, route}: Props) {
     ? 'waiting'
     : latestPoint.accuracy <= 20
       ? 'good'
-      : latestPoint.accuracy <= 50
+    : latestPoint.accuracy <= 50
         ? 'medium'
-        : 'weak';
+        : latestPoint.accuracy <= MAX_ACCEPTABLE_GPS_ACCURACY_METERS
+          ? 'weak'
+          : 'unusable';
   const gpsQualityLabel = {
     waiting: 'Đang tìm GPS',
     good: 'GPS tốt',
     medium: 'GPS trung bình',
     weak: 'GPS yếu',
+    unusable: 'GPS rất yếu',
   }[gpsQuality];
-  const gpsAvailable = gpsQuality === 'good' || gpsQuality === 'medium';
+  const gpsAvailable =
+    gpsQuality === 'good' ||
+    gpsQuality === 'medium' ||
+    gpsQuality === 'weak';
   const isBusy = phase === 'initializing' || phase === 'finishing';
   const targetLabel = targetValue
     ? targetValue >= 1000
@@ -561,7 +586,7 @@ export function GPSTrackerScreen({navigation, route}: Props) {
           loadingEnabled
           showsCompass
           showsMyLocationButton
-          showsUserLocation={latestPoint !== null}
+          showsUserLocation={locationPermissionGranted}
           toolbarEnabled={false}>
           {routeCoordinates.length > 1 ? (
             <Polyline
@@ -651,7 +676,7 @@ export function GPSTrackerScreen({navigation, route}: Props) {
         </View>
       </View>
 
-      {gpsQuality === 'weak' ? (
+      {gpsQuality === 'weak' || gpsQuality === 'unusable' ? (
         <View style={styles.gpsGuidanceCard}>
           <AlertCircle size={18} color="#B08000" />
           <Text style={styles.gpsGuidanceText}>
