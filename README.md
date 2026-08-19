@@ -1,9 +1,10 @@
-# Touch Grass Mobile
+# Touch Grass Mobile (Frontend repo)
+Backend repo is here: https://github.com/adin-67/BE_TouchGrass_Mobile
 
 Android app for the **CSE430 course project "Touch Grass"**: blocks social-media apps until the
 user completes real-world tasks (walking, photo verification, screen-off timers) and earns XP/Leaf
 Points that unlock limited app access. This is the React Native client; the NestJS API lives in the
-sibling `../Backend/` repo.
+sibling `Backend` repo.
 
 ## Tech stack
 
