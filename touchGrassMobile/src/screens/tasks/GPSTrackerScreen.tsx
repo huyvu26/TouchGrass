@@ -47,6 +47,7 @@ import type {
   GpsPoint,
   GpsVerificationResponse,
 } from '../../types/userTask';
+import {getValidWalkingSegmentMeters} from '../../utils/gpsDistance';
 
 type Props = NativeStackScreenProps<
   AuthStackParamList,
@@ -149,6 +150,10 @@ export function GPSTrackerScreen({navigation, route}: Props) {
   const [latestPoint, setLatestPoint] =
     useState<GpsPoint | null>(null);
   const [routeCoordinates, setRouteCoordinates] = useState<LatLng[]>([]);
+  const [liveDistanceMeters, setLiveDistanceMeters] = useState(0);
+  const [officialDistanceMeters, setOfficialDistanceMeters] = useState<
+    number | null
+  >(null);
   const [targetValue, setTargetValue] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [failureMessage, setFailureMessage] = useState<string | null>(
@@ -161,12 +166,16 @@ export function GPSTrackerScreen({navigation, route}: Props) {
   >(null);
 
   const pointsRef = useRef<GpsPoint[]>([]);
+  const liveDistanceMetersRef = useRef(0);
+  const previousLivePointRef = useRef<GpsPoint | null>(null);
   const mapRef = useRef<MapView | null>(null);
   const watchIdRef = useRef<number | null>(null);
+  const acceptingPositionsRef = useRef(false);
   const trackingStartedAtRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
 
   const stopLocationWatch = useCallback(() => {
+    acceptingPositionsRef.current = false;
     if (watchIdRef.current !== null) {
       Geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
@@ -174,27 +183,41 @@ export function GPSTrackerScreen({navigation, route}: Props) {
   }, []);
 
   const recordPosition = useCallback((position: GeolocationResponse) => {
+    if (!acceptingPositionsRef.current || !mountedRef.current) {
+      return;
+    }
+
+    const latitude = position.coords.latitude;
+    const longitude = position.coords.longitude;
     const accuracy = position.coords.accuracy;
+    const timestampMs = position.timestamp;
 
     if (
+      !Number.isFinite(latitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      !Number.isFinite(longitude) ||
+      longitude < -180 ||
+      longitude > 180 ||
       !Number.isFinite(accuracy) ||
-      accuracy < 0 ||
-      accuracy > 100
+      accuracy <= 0 ||
+      !Number.isFinite(timestampMs) ||
+      timestampMs <= 0
     ) {
       return;
     }
 
     const point: GpsPoint = {
-      latitude: position.coords.latitude,
-      longitude: position.coords.longitude,
+      latitude,
+      longitude,
       accuracy,
-      timestamp: new Date(position.timestamp).toISOString(),
+      timestamp: new Date(timestampMs).toISOString(),
     };
     const previousPoint = pointsRef.current.at(-1);
 
     setLatestPoint(point);
 
-    // Backend chỉ sử dụng điểm có độ chính xác từ 50 m trở xuống.
+    // Điểm yếu chỉ dùng để báo chất lượng tín hiệu, không lưu vào tuyến đường.
     if (accuracy > 50 || pointsRef.current.length >= MAX_GPS_POINTS) {
       return;
     }
@@ -209,6 +232,21 @@ export function GPSTrackerScreen({navigation, route}: Props) {
 
     pointsRef.current.push(point);
     setPointsCount(pointsRef.current.length);
+    setFailureMessage(null);
+    setSettingsTarget(null);
+
+    const previousLivePoint = previousLivePointRef.current;
+    if (previousLivePoint) {
+      const segmentMeters = getValidWalkingSegmentMeters(
+        previousLivePoint,
+        point,
+      );
+      if (segmentMeters > 0) {
+        liveDistanceMetersRef.current += segmentMeters;
+        setLiveDistanceMeters(liveDistanceMetersRef.current);
+      }
+    }
+    previousLivePointRef.current = point;
     setRouteCoordinates(current => [
       ...current,
       {latitude: point.latitude, longitude: point.longitude},
@@ -217,6 +255,7 @@ export function GPSTrackerScreen({navigation, route}: Props) {
 
   const startLocationWatch = useCallback(() => {
     stopLocationWatch();
+    acceptingPositionsRef.current = true;
     watchIdRef.current = Geolocation.watchPosition(
       recordPosition,
       error => {
@@ -233,9 +272,9 @@ export function GPSTrackerScreen({navigation, route}: Props) {
       },
       {
         enableHighAccuracy: true,
-        distanceFilter: 3,
-        interval: 5000,
-        fastestInterval: 3000,
+        distanceFilter: 1,
+        interval: 2000,
+        fastestInterval: 1000,
         maximumAge: 0,
         timeout: 20000,
       },
@@ -248,9 +287,15 @@ export function GPSTrackerScreen({navigation, route}: Props) {
     setVerification(null);
     setSettingsTarget(null);
     pointsRef.current = [];
+    liveDistanceMetersRef.current = 0;
+    previousLivePointRef.current = null;
     setPointsCount(0);
     setLatestPoint(null);
     setRouteCoordinates([]);
+    setLiveDistanceMeters(0);
+    setOfficialDistanceMeters(null);
+    setElapsedSeconds(0);
+    trackingStartedAtRef.current = null;
 
     try {
       const permissionResult = await requestLocationPermission();
@@ -288,6 +333,7 @@ export function GPSTrackerScreen({navigation, route}: Props) {
         : Date.now();
 
       if (result.verificationStatus === 'PASSED') {
+        setOfficialDistanceMeters(result.summary.distanceMeters);
         setPhase('passed');
         return;
       }
@@ -371,12 +417,14 @@ export function GPSTrackerScreen({navigation, route}: Props) {
   function togglePause() {
     if (phase === 'tracking') {
       stopLocationWatch();
+      previousLivePointRef.current = null;
       setPhase('paused');
       return;
     }
 
     if (phase === 'paused') {
       setFailureMessage(null);
+      previousLivePointRef.current = null;
       setPhase('tracking');
       startLocationWatch();
     }
@@ -426,17 +474,23 @@ export function GPSTrackerScreen({navigation, route}: Props) {
       setVerification(result);
 
       if (result.verificationStatus === 'PASSED') {
+        setOfficialDistanceMeters(result.summary.distanceMeters);
         setPhase('passed');
         await completeAndOpenReward();
         return;
       }
 
       if (result.verificationStatus === 'FAILED') {
+        setOfficialDistanceMeters(result.summary.distanceMeters);
         setFailureMessage(getFailureMessage(result.failureReason));
         setPhase('failed');
         return;
       }
 
+      liveDistanceMetersRef.current = result.summary.distanceMeters;
+      setLiveDistanceMeters(result.summary.distanceMeters);
+      setOfficialDistanceMeters(null);
+      previousLivePointRef.current = null;
       setPhase('tracking');
       startLocationWatch();
     } catch (error) {
@@ -450,15 +504,30 @@ export function GPSTrackerScreen({navigation, route}: Props) {
     }
   }
 
-  const gpsAvailable =
-    latestPoint !== null && latestPoint.accuracy <= 50 && !failureMessage;
+  const gpsQuality = !latestPoint
+    ? 'waiting'
+    : latestPoint.accuracy <= 20
+      ? 'good'
+      : latestPoint.accuracy <= 50
+        ? 'medium'
+        : 'weak';
+  const gpsQualityLabel = {
+    waiting: 'Đang tìm GPS',
+    good: 'GPS tốt',
+    medium: 'GPS trung bình',
+    weak: 'GPS yếu',
+  }[gpsQuality];
+  const gpsAvailable = gpsQuality === 'good' || gpsQuality === 'medium';
   const isBusy = phase === 'initializing' || phase === 'finishing';
   const targetLabel = targetValue
     ? targetValue >= 1000
       ? `${targetValue / 1000} km`
       : `${targetValue} m`
     : 'Đang tải';
-  const backendSummary = verification?.summary;
+  const displayedDistanceMeters =
+    officialDistanceMeters ?? liveDistanceMeters;
+  const hasOfficialDistance =
+    verification !== null && officialDistanceMeters !== null;
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -477,7 +546,7 @@ export function GPSTrackerScreen({navigation, route}: Props) {
                 styles.gpsChipText,
                 !gpsAvailable && styles.gpsChipTextError,
               ]}>
-              {gpsAvailable ? 'GPS OK' : 'Đang tìm GPS'}
+              {gpsQualityLabel}
             </Text>
           </View>
         }
@@ -550,8 +619,12 @@ export function GPSTrackerScreen({navigation, route}: Props) {
         <View style={styles.ring}>
           <View style={styles.ringCircle}>
             <MapPin size={25} color={colors.primaryButton} />
-            <Text style={styles.ringValue}>{pointsCount}</Text>
-            <Text style={styles.ringLabel}>điểm GPS</Text>
+            <Text style={styles.ringValue}>
+              {Math.round(displayedDistanceMeters)} m
+            </Text>
+            <Text style={styles.ringLabel}>
+              {hasOfficialDistance ? 'đã xác minh' : 'đang ghi nhận'}
+            </Text>
           </View>
         </View>
 
@@ -559,11 +632,10 @@ export function GPSTrackerScreen({navigation, route}: Props) {
           {[
             [
               'Quãng đường',
-              backendSummary
-                ? `${Math.round(backendSummary.distanceMeters)} / ${Math.round(targetValue)} m`
-                : 'Chờ xác minh',
+              `${Math.round(displayedDistanceMeters)} / ${Math.round(targetValue)} m`,
             ],
             ['Thời gian', formatDuration(elapsedSeconds)],
+            ['Điểm GPS hợp lệ', String(pointsCount)],
           ].map(([label, value], index) => (
             <View key={label} style={styles.stat}>
               <Text style={styles.statLabel}>{label}</Text>
@@ -578,6 +650,15 @@ export function GPSTrackerScreen({navigation, route}: Props) {
           ))}
         </View>
       </View>
+
+      {gpsQuality === 'weak' ? (
+        <View style={styles.gpsGuidanceCard}>
+          <AlertCircle size={18} color="#B08000" />
+          <Text style={styles.gpsGuidanceText}>
+            Hãy ra khu vực thoáng để GPS chính xác hơn.
+          </Text>
+        </View>
+      ) : null}
 
       {failureMessage ? (
         <View style={styles.failureCard}>
@@ -729,6 +810,17 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: colors.errorBackground,
   },
+  gpsGuidanceCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 9,
+    borderRadius: 14,
+    backgroundColor: '#FFF5D9',
+  },
+  gpsGuidanceText: {flex: 1, color: '#7A5700', fontSize: 12, lineHeight: 18},
   failureText: {flex: 1, color: colors.error, fontSize: 12, lineHeight: 18},
   failureContent: {flex: 1, rowGap: 6},
   settingsLink: {color: colors.primaryButton, fontSize: 12, fontWeight: '800'},
